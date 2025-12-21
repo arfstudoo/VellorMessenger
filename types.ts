@@ -10,9 +10,12 @@ export interface User {
   isFavorites?: boolean; 
   isGroup?: boolean; 
   bio?: string;
-  phone?: string;
+  phone?: string;     // Added
+  email?: string;     // Added
   username?: string;
-  isVerified?: boolean; // New: Verified Badge
+  isVerified?: boolean; 
+  isAdmin?: boolean;  // Added for consistency
+  created_at?: string; // Added for "Member since"
 }
 
 export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
@@ -26,8 +29,9 @@ export interface UserProfile {
   username: string;
   avatar: string;
   status: UserStatus;
-  isAdmin?: boolean;      // New: Admin Access
-  isVerified?: boolean;   // New: Verified Badge
+  isAdmin?: boolean;      
+  isVerified?: boolean;   
+  created_at?: string; // Added
   
   // Privacy Settings
   privacy_phone?: PrivacyValue;

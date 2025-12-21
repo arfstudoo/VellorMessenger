@@ -254,7 +254,7 @@ const App: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState<Map<string, UserStatus>>(new Map());
 
   const [userProfile, setUserProfile] = useState<UserProfile>({ 
-    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online', isAdmin: false, isVerified: false
+    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online', isAdmin: false, isVerified: false, created_at: new Date().toISOString()
   });
   
   useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
@@ -433,7 +433,8 @@ const App: React.FC = () => {
            setUserProfile({
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
               phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
-              isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false
+              isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false,
+              created_at: profile.created_at
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -578,9 +579,21 @@ const App: React.FC = () => {
             profiles?.forEach(p => {
                 const pid = p.id;
                 const s = settingsMap.get(pid);
+                // Correctly map fields for User Info panel
                 chatsMap.set(pid, {
                     id: pid,
-                    user: { id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', username: p.username, isGroup: false, isVerified: p.is_verified },
+                    user: { 
+                        id: pid, 
+                        name: p.full_name, 
+                        avatar: p.avatar_url, 
+                        status: p.status || 'offline', 
+                        username: p.username, 
+                        isGroup: false, 
+                        isVerified: p.is_verified,
+                        bio: p.bio,              // Mapped
+                        email: p.email,          // Mapped if available in profile (depends on RLS)
+                        created_at: p.created_at // Mapped
+                    },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                     isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false
                 });
@@ -763,7 +776,7 @@ const App: React.FC = () => {
              // Update chats list details if this user is in our list
              setChats(prev => prev.map(c => {
                  if (c.user.id === updatedProfile.id) {
-                     return { ...c, user: { ...c.user, name: updatedProfile.full_name, username: updatedProfile.username, avatar: updatedProfile.avatar_url, isVerified: updatedProfile.is_verified } };
+                     return { ...c, user: { ...c.user, name: updatedProfile.full_name, username: updatedProfile.username, avatar: updatedProfile.avatar_url, isVerified: updatedProfile.is_verified, bio: updatedProfile.bio, email: updatedProfile.email } };
                  }
                  return c;
              }));

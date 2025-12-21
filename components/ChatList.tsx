@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -74,6 +74,7 @@ export const ChatList: React.FC<ChatListProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const groupAvatarInputRef = useRef<HTMLInputElement>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chat: Chat } | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState(false);
   
   // Search & Contacts
   const [searchQuery, setSearchQuery] = useState("");
@@ -336,6 +337,9 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   const recentContacts = chats.filter(c => !c.user.isGroup).map(c => c.user);
 
+  // --- ADMIN CHECK LOGIC FOR UI ---
+  const isSuperAdmin = userProfile.username?.toLowerCase() === 'arfstudoo';
+
   return (
     <div className="flex flex-col h-full relative">
       <div className="p-4 flex flex-col gap-3 border-b border-[var(--border)] bg-black/10 backdrop-blur-sm sticky top-0 z-20">
@@ -353,11 +357,16 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </div>
             </div>
 
-            <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl relative cursor-pointer" onClick={() => setActiveModal('profile')}>
+            <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl relative cursor-pointer group" onClick={() => setActiveModal('profile')}>
               <img src={userProfile.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar" />
               <div className="absolute bottom-0 right-0">
                  <StatusIndicator status={userProfile.status} size="w-2.5 h-2.5" />
               </div>
+              {isSuperAdmin && (
+                  <div className="absolute -top-1.5 -right-1.5 bg-black/80 rounded-full p-0.5 border border-yellow-500/50 shadow-lg shadow-yellow-500/20" title="Administrator">
+                      <Crown size={10} className="text-yellow-400 fill-yellow-400" />
+                  </div>
+              )}
             </div>
         </div>
 
@@ -401,6 +410,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               <div className="flex justify-between items-baseline mb-0.5">
                 <h3 className="text-[15px] font-bold truncate flex items-center gap-1.5 text-white/90">
                     {chat.user.name} 
+                    {/* Admin Check for Chat List items (if needed) - assumes we have data */}
+                    {chat.user.username?.toLowerCase() === 'arfstudoo' && <Crown size={12} className="text-yellow-400 fill-yellow-400" />}
                     {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     {chat.isMuted && <BellOff size={10} className="text-white/30" />}
                 </h3>
@@ -470,6 +481,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               <div className="p-4 mb-2 bg-white/5 rounded-2xl border border-white/5">
                  <p className="text-white font-bold flex items-center gap-2">
                      {userProfile.name}
+                     {/* Admin Crown in Menu */}
+                     {isSuperAdmin && <Crown size={14} className="text-yellow-400 fill-yellow-400" />}
                      {userProfile.isVerified && <BadgeCheck size={14} className="text-blue-400 fill-blue-400/20" />}
                  </p>
                  <p className="text-xs text-white/50">@{userProfile.username}</p>
@@ -499,7 +512,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : activeModal === 'privacy_item' ? 'privacy' : 'settings')} className="p-2 text-white/40 hover:text-white transition-colors"><ChevronLeft size={24}/></button>
                     )}
                     <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">
-                    {activeModal === 'profile' ? 'Профиль' : activeModal === 'settings' ? 'Настройки' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : activeModal === 'nft' ? 'NFT Collection' : 'Приватность'}
+                    {activeModal === 'profile' ? 'Мой Профиль' : activeModal === 'settings' ? 'Настройки' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : activeModal === 'nft' ? 'NFT Collection' : 'Приватность'}
                     </h2>
                 </div>
                 <button onClick={() => setActiveModal(null)} className="p-2.5 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={20}/></button>
@@ -586,26 +599,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                                               <span>Admin Access</span>
                                               <button onClick={() => handleAdminAction('admin', !adminSelectedUser.isAdmin)} disabled={adminActionLoading} className="px-2 py-1 text-[10px] border border-green-500/50 opacity-50 hover:bg-green-500 hover:text-black">
                                                   TOGGLE
-                                              </button>
-                                          </div>
-                                      </div>
-
-                                      <div className="space-y-2">
-                                          <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1">Override</p>
-                                          <div className="flex gap-2">
-                                              <input 
-                                                 id="force-username"
-                                                 placeholder="New Username"
-                                                 className="flex-1 bg-black border border-green-500/30 p-2 text-xs text-green-400 outline-none"
-                                              />
-                                              <button 
-                                                onClick={() => {
-                                                    const val = (document.getElementById('force-username') as HTMLInputElement).value;
-                                                    if(val) handleAdminAction('username', val);
-                                                }}
-                                                className="px-3 bg-green-500/20 hover:bg-green-500/40 text-[10px] uppercase"
-                                              >
-                                                  Set
                                               </button>
                                           </div>
                                       </div>
@@ -710,11 +703,13 @@ export const ChatList: React.FC<ChatListProps> = ({
                   </div>
               )}
 
+              {/* --- IMPROVED PROFILE MODAL --- */}
               {activeModal === 'profile' && (
-                <div className="space-y-8">
-                  <div className="flex flex-col items-center gap-6">
+                <div className="space-y-8 pb-10">
+                  {/* Avatar & Header */}
+                  <div className="flex flex-col items-center gap-6 relative">
                     <div className="relative group">
-                      <div className="w-40 h-40 rounded-full border-4 border-white/5 overflow-hidden bg-black relative shadow-2xl">
+                      <div className="w-40 h-40 rounded-[2.5rem] border-4 border-white/5 overflow-hidden bg-black relative shadow-2xl">
                           <img src={userProfile.avatar || 'https://via.placeholder.com/176'} className={`w-full h-full object-cover transition-opacity duration-300 ${isUploadingAvatar ? 'opacity-40' : 'opacity-100'}`} alt="Profile" />
                           {isUploadingAvatar && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-vellor-red" size={32} /></div>}
                       </div>
@@ -722,12 +717,72 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <Camera size={18} />
                       </button>
                       <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+                      
+                      {/* Special Admin Badge Overlay */}
+                      {isSuperAdmin && (
+                          <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20" title="Administrator">
+                              <Crown size={20} className="text-yellow-400 fill-yellow-400" />
+                          </div>
+                      )}
+                    </div>
+                    
+                    <div className="text-center">
+                        <h2 className="text-2xl font-black text-white mb-1 flex items-center justify-center gap-2">
+                            {userProfile.name}
+                            {userProfile.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
+                        </h2>
+                        <div 
+                           className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"
+                           onClick={() => { navigator.clipboard.writeText(userProfile.id); setCopyFeedback(true); setTimeout(() => setCopyFeedback(false), 2000); }}
+                        >
+                            <span className="text-[10px] font-mono opacity-50">ID: {userProfile.id.substring(0, 8)}...</span>
+                            {copyFeedback ? <Check size={10} className="text-green-500" /> : <Copy size={10} className="opacity-30" />}
+                        </div>
                     </div>
                   </div>
+
+                  {/* Stats Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                      <div className="p-4 bg-white/5 border border-white/5 rounded-2xl flex flex-col items-center text-center">
+                          <Calendar size={18} className="text-vellor-red mb-2 opacity-80"/>
+                          <span className="text-[9px] font-bold uppercase opacity-40 tracking-wider">Дата регистрации</span>
+                          <span className="text-xs font-bold mt-1">
+                              {userProfile.created_at ? new Date(userProfile.created_at).toLocaleDateString() : 'Early Access'}
+                          </span>
+                      </div>
+                      <div className="p-4 bg-white/5 border border-white/5 rounded-2xl flex flex-col items-center text-center">
+                          <Hash size={18} className="text-fuchsia-400 mb-2 opacity-80"/>
+                          <span className="text-[9px] font-bold uppercase opacity-40 tracking-wider">Username</span>
+                          <span className="text-xs font-bold mt-1">@{userProfile.username}</span>
+                      </div>
+                  </div>
+
+                  {/* Edit Forms */}
                   <div className="space-y-4">
-                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Отображаемое имя</label><input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-bold focus:border-vellor-red/50 outline-none transition-all" /></div>
-                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Юзернейм</label><div className="flex items-center bg-white/5 border border-white/5 rounded-2xl px-4 transition-all focus-within:border-vellor-red/50"><span className="text-white/30 text-sm font-bold">@</span><input value={userProfile.username} onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent border-none p-4 pl-1 text-sm font-bold outline-none text-white" /></div></div>
-                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Bio</label><textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm min-h-[100px] resize-none focus:border-vellor-red/50 outline-none transition-all" /></div>
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Отображаемое имя</label>
+                        <input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-bold focus:border-vellor-red/50 outline-none transition-all" />
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Юзернейм</label>
+                        <div className="flex items-center bg-white/5 border border-white/5 rounded-2xl px-4 transition-all focus-within:border-vellor-red/50">
+                            <span className="text-white/30 text-sm font-bold">@</span>
+                            <input value={userProfile.username} onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent border-none p-4 pl-1 text-sm font-bold outline-none text-white" />
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">О себе (Bio)</label>
+                        <textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm min-h-[100px] resize-none focus:border-vellor-red/50 outline-none transition-all leading-relaxed" placeholder="Расскажите о себе..." />
+                    </div>
+
+                    <div className="p-4 rounded-2xl border border-white/5 bg-black/20 flex flex-col gap-3">
+                         <div className="flex items-center gap-3 opacity-60">
+                             <Phone size={14}/>
+                             <span className="text-xs">{userProfile.phone || 'Телефон не указан'}</span>
+                         </div>
+                    </div>
                   </div>
                 </div>
               )}

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Smartphone, Pin, Edit2, Crown, LogOut, Plus, Check, Loader2, Reply, ZoomIn } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Smartphone, Pin, Edit2, Crown, LogOut, Plus, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -179,7 +179,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 if (profiles) {
                     setGroupMembers(members.map(m => {
                         const p = profiles.find(pr => pr.id === m.user_id);
-                        return { ...m, user: { id: p?.id || m.user_id, name: p?.full_name || 'Unknown', avatar: p?.avatar_url || '', username: p?.username } };
+                        return { ...m, user: { id: p?.id || m.user_id, name: p?.full_name || 'Unknown', avatar: p?.avatar_url || '', username: p?.username, isVerified: p?.is_verified, bio: p?.bio, email: p?.email, created_at: p?.created_at } };
                     }));
                 }
             }
@@ -332,6 +332,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // Admin Check for Header
+  const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
+
   return (
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
@@ -349,7 +352,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
                 </div>
                 <div className="cursor-pointer" onClick={() => setShowUserInfo(true)}>
-                    <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5">{chat.user.name}</h3>
+                    <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5 flex items-center gap-1.5">
+                        {chat.user.name}
+                        {isSuperAdmin && (
+                            <div title="Administrator">
+                                <Crown size={12} className="text-yellow-400 fill-yellow-400" />
+                            </div>
+                        )}
+                        {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
+                    </h3>
                     {isPartnerTyping ? (
                         <p className="text-[10px] text-vellor-red font-bold animate-pulse">печатает...</p>
                     ) : (
@@ -418,7 +429,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                         </div>
                                     )}
 
-                                    {!isMe && chat.user.isGroup && <p className="text-[10px] font-bold text-vellor-red mb-1 ml-1">{senderInfo?.name}</p>}
+                                    {!isMe && chat.user.isGroup && (
+                                        <div className="flex items-center gap-1 mb-1 ml-1">
+                                            <p className="text-[10px] font-bold text-vellor-red">{senderInfo?.name}</p>
+                                            {/* Admin Check for Group Members if we had username, for now relying on senderInfo structure which might need username populated */}
+                                        </div>
+                                    )}
+
                                     {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}
                                     
                                     {msg.type === 'audio' && <AudioPlayer url={msg.mediaUrl || ''} duration={msg.duration} />}
@@ -493,7 +510,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* User Info Panel (Keeping simplified for brevity as logic exists) */}
+        {/* User Info Panel - REPAIRED AND ENHANCED */}
         <AnimatePresence>
             {showUserInfo && (
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
@@ -502,14 +519,58 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <button onClick={() => setShowUserInfo(false)} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
                     </div>
                     {/* User Info Body */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8 flex flex-col items-center">
-                        <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl">
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center">
+                        <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl group">
                             <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
                                 <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" />
                             </div>
+                            {isSuperAdmin && (
+                                <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20" title="Administrator">
+                                    <Crown size={20} className="text-yellow-400 fill-yellow-400" />
+                                </div>
+                            )}
                         </div>
-                        <h1 className="text-2xl font-black text-white text-center mb-1">{chat.user.name}</h1>
-                        <p className="text-sm font-medium text-white/80 leading-relaxed text-center">{chat.user.bio || 'Нет информации'}</p>
+                        
+                        <div className="text-center space-y-1">
+                            <h1 className="text-2xl font-black text-white flex items-center justify-center gap-2">
+                                {chat.user.name}
+                                {chat.user.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
+                            </h1>
+                            <p className="text-sm text-white/40 font-mono">@{chat.user.username}</p>
+                        </div>
+
+                        {/* Info Cards */}
+                        <div className="w-full space-y-3">
+                            {/* Bio Card */}
+                            <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2">
+                                    <Info size={12}/> О себе
+                                </h4>
+                                <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">
+                                    {chat.user.bio || 'Информация не заполнена.'}
+                                </p>
+                            </div>
+
+                            {/* Contact Details */}
+                            <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
+                                <div className="flex items-center gap-3 opacity-70">
+                                    <Mail size={16} />
+                                    <span className="text-xs">{chat.user.email || 'Скрыто'}</span>
+                                </div>
+                                <div className="flex items-center gap-3 opacity-70">
+                                    <Calendar size={16} />
+                                    <span className="text-xs">
+                                        {chat.user.created_at 
+                                            ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` 
+                                            : 'Дата регистрации скрыта'}
+                                    </span>
+                                </div>
+                                <div className="flex items-center gap-3 opacity-70">
+                                    <User size={16} />
+                                    <span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </MDiv>
             )}
