@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, User, Monitor, MonitorOff, Headphones, VolumeX, Volume2, MoreVertical } from 'lucide-react';
@@ -74,7 +75,6 @@ export const CallModal: React.FC<CallModalProps> = ({
   }, []);
 
   // 1. Initial Media Setup (Audio Only first, or Audio+Video if requested)
-  // CRITICAL: We get the audio track ONCE and keep it alive.
   useEffect(() => {
     const startMedia = async () => {
       try {
@@ -92,7 +92,7 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (callState !== 'ended' && !localStream) {
         startMedia();
     }
-  }, [callType, callState]); // Run once on mount/call start
+  }, [callType, callState]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -224,11 +224,8 @@ export const CallModal: React.FC<CallModalProps> = ({
             } catch(e) { console.error("Renegotiation Error", e); }
         };
 
-        // CRITICAL: Add tracks immediately. 
-        // This ensures audio is sent even if video isn't ready or changes later.
         if (localStream) {
             localStream.getTracks().forEach(track => {
-                 // Check if track already exists to avoid duplicates
                  if (!pc.getSenders().some(s => s.track?.id === track.id)) {
                      pc.addTrack(track, localStream);
                  }
@@ -236,7 +233,6 @@ export const CallModal: React.FC<CallModalProps> = ({
         }
 
         pc.ontrack = (event) => {
-            console.log("Track received:", event.track.kind);
             setRemoteStream(new MediaStream(event.streams[0].getTracks()));
         };
 
@@ -250,7 +246,6 @@ export const CallModal: React.FC<CallModalProps> = ({
     if (callState === 'connected' && localStream) {
         createPeerConnection();
         if (isCaller) {
-            // Small delay to ensure tracks are added
             setTimeout(async () => {
                 const pc = peerConnection.current!;
                 try {
@@ -287,32 +282,23 @@ export const CallModal: React.FC<CallModalProps> = ({
     }
   };
 
-  // --- MANUAL VIDEO TOGGLE (WEBCAM) ---
   const toggleVideo = async () => {
      if (isScreenSharing) {
-       // If screen sharing is ON, clicking camera button stops screen share and attempts to start camera?
-       // User said "Separate function".
-       // Let's assume clicking video button while screen sharing stops screen sharing AND enables camera.
-       await stopScreenShare(true); // Stop screen, start camera
+       await stopScreenShare(true); 
        return;
      }
 
-     // Normal toggling
      if (!isVideoOn) {
-         // Enable Camera
          try {
-             // If we already have a video track in localStream (but disabled), enable it
              const existingVideoTrack = localStream?.getVideoTracks()[0];
              if (existingVideoTrack) {
                  existingVideoTrack.enabled = true;
              } else {
-                 // Request new camera track
                  const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
                  const newVideoTrack = cameraStream.getVideoTracks()[0];
                  
                  if (localStream) {
                      localStream.addTrack(newVideoTrack);
-                     // Add to PC
                      if (peerConnection.current) {
                          peerConnection.current.addTrack(newVideoTrack, localStream);
                      }
@@ -321,35 +307,27 @@ export const CallModal: React.FC<CallModalProps> = ({
              setIsVideoOn(true);
          } catch(e) { console.error("Camera Error", e); }
      } else {
-         // Disable Camera
          if (localStream) {
              localStream.getVideoTracks().forEach(t => t.enabled = false);
-             // Optionally stop track to release hardware light
-             // localStream.getVideoTracks().forEach(t => t.stop()); 
-             // But for fast toggling, just disabling is better.
          }
          setIsVideoOn(false);
      }
   };
 
-  // --- SCREEN SHARE LOGIC ---
   const startScreenShare = async () => {
       try {
           const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
           const screenTrack = displayStream.getVideoTracks()[0];
           
-          // CRITICAL: Reuse existing audio track from localStream
           const currentAudioTrack = localStream?.getAudioTracks()[0];
           
-          // Create new visual stream state
           const newStream = new MediaStream([screenTrack]);
           if (currentAudioTrack) newStream.addTrack(currentAudioTrack);
 
           screenTrack.onended = () => {
-              stopScreenShare(false); // On native stop, do NOT auto-enable camera
+              stopScreenShare(false); 
           };
 
-          // Update WebRTC Sender
           if (peerConnection.current) {
               const senders = peerConnection.current.getSenders();
               const videoSender = senders.find(s => s.track?.kind === 'video');
@@ -362,7 +340,6 @@ export const CallModal: React.FC<CallModalProps> = ({
 
           setLocalStream(newStream);
           setIsScreenSharing(true);
-          // Visual indication that video (screen) is active
           setIsVideoOn(true); 
 
           await supabase.channel(signalingChannelId).send({ 
@@ -377,12 +354,9 @@ export const CallModal: React.FC<CallModalProps> = ({
       }
   };
 
-  // switchToCamera: If true, we turn on webcam. If false, we go to audio-only.
   const stopScreenShare = async (switchToCamera: boolean = false) => {
       try {
-          // 1. Reuse existing audio
           let audioTrack = localStream?.getAudioTracks()[0];
-          // Recover audio if missing
           if (!audioTrack || audioTrack.readyState === 'ended') {
               try {
                   const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -394,17 +368,14 @@ export const CallModal: React.FC<CallModalProps> = ({
               } catch (e) { console.error("Audio recovery failed", e); }
           }
           
-          // 2. Stop Screen Track
           localStream?.getVideoTracks().forEach(track => {
               if (track.label.includes('screen') || track.kind === 'video') track.stop();
           });
 
-          // 3. Handle Video Transition
           let newStream = new MediaStream();
           if (audioTrack) newStream.addTrack(audioTrack);
 
           if (switchToCamera) {
-              // User explicitly requested camera (e.g. clicked camera button while screen sharing)
               const cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
               const camTrack = cameraStream.getVideoTracks()[0];
               newStream.addTrack(camTrack);
@@ -416,20 +387,13 @@ export const CallModal: React.FC<CallModalProps> = ({
               }
               setIsVideoOn(true);
           } else {
-              // DEFAULT: Go to Audio Only (User said "Don't touch webcam")
-              // We stop sending video
               if (peerConnection.current) {
                   const videoSender = peerConnection.current.getSenders().find(s => s.track?.kind === 'video');
-                  // We can't easily "remove" a track without renegotiation, 
-                  // but we can replace it with null or disable the sender.
-                  // Or just leave the sender but with no track? 
-                  // replaceTrack(null) stops sending video.
                   if (videoSender) await videoSender.replaceTrack(null);
               }
               setIsVideoOn(false);
           }
 
-          // 4. Update Local State
           setLocalStream(newStream);
           setIsScreenSharing(false);
           
@@ -437,7 +401,6 @@ export const CallModal: React.FC<CallModalProps> = ({
               localVideoRef.current.srcObject = newStream;
           }
 
-          // Ensure mute state preserved
           if (audioTrack) audioTrack.enabled = isMicOn && !isDeafened;
 
           await supabase.channel(signalingChannelId).send({ 
@@ -453,7 +416,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   const toggleScreenShare = () => {
-      if (isScreenSharing) stopScreenShare(false); // Default: Stop to audio only
+      if (isScreenSharing) stopScreenShare(false);
       else startScreenShare();
   };
 
@@ -596,7 +559,6 @@ export const CallModal: React.FC<CallModalProps> = ({
                       initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
                       className={`absolute top-6 right-6 w-32 h-44 bg-black/80 rounded-2xl overflow-hidden border border-white/20 shadow-2xl z-30 cursor-grab active:cursor-grabbing ${isScreenSharing ? '' : 'mirror-mode'}`}
                    >
-                       {/* muted prop prevents self-echo from local stream playback */}
                        <video 
                           key={isScreenSharing ? 'local-screen' : 'local-cam'}
                           ref={localVideoRef} 
@@ -631,4 +593,41 @@ export const CallModal: React.FC<CallModalProps> = ({
                         <div className="w-px h-8 bg-white/10" />
                         <button onClick={handleManualAnswer} className="w-20 h-20 rounded-full bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.4)] flex items-center justify-center transition-all active:scale-95 animate-pulse">
                             <Phone size={36} />
-                        </
+                        </button>
+                      </>
+                  )}
+
+                  {/* CONNECTED CONTROLS */}
+                  {callState === 'connected' && (
+                      <>
+                        <button onClick={toggleMic} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${!isMicOn ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                            {isMicOn ? <Mic size={24}/> : <MicOff size={24}/>}
+                        </button>
+                        <button onClick={toggleVideo} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${!isVideoOn ? 'bg-white text-black' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                            {isVideoOn ? <Video size={24}/> : <VideoOff size={24}/>}
+                        </button>
+                        <button onClick={toggleDeafen} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${isDeafened ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                            {isDeafened ? <VolumeX size={24}/> : <Headphones size={24}/>}
+                        </button>
+                        <button onClick={toggleScreenShare} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${isScreenSharing ? 'bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                            {isScreenSharing ? <MonitorOff size={24}/> : <Monitor size={24}/>}
+                        </button>
+                        <div className="w-px h-8 bg-white/10 mx-2" />
+                        <button onClick={handleManualEnd} className="w-16 h-16 rounded-full bg-red-600 text-white hover:bg-red-500 shadow-[0_5px_20px_rgba(220,38,38,0.4)] flex items-center justify-center transition-all active:scale-95">
+                            <PhoneOff size={28} />
+                        </button>
+                      </>
+                  )}
+
+                  {/* OUTGOING CONTROLS */}
+                  {callState === 'calling' && (
+                      <button onClick={handleManualEnd} className="w-16 h-16 rounded-full bg-red-600 text-white hover:bg-red-500 shadow-[0_5px_20px_rgba(220,38,38,0.4)] flex items-center justify-center transition-all active:scale-95">
+                          <PhoneOff size={28} />
+                      </button>
+                  )}
+              </MDiv>
+          </div>
+      </div>
+    </MDiv>
+  );
+};
