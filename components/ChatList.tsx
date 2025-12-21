@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -338,14 +338,14 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   return (
     <div className="flex flex-col h-full relative">
-      <div className="p-4 flex flex-col gap-4 border-b border-[var(--border)] bg-black/10 backdrop-blur-sm sticky top-0 z-20">
+      <div className="p-4 flex flex-col gap-3 border-b border-[var(--border)] bg-black/10 backdrop-blur-sm sticky top-0 z-20">
         <div className="flex items-center justify-between">
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 bg-white/5 rounded-2xl text-white/40 hover:text-white transition-all">
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 bg-white/5 rounded-xl text-white/40 hover:text-white transition-all">
               <Menu size={22}/>
             </button>
             
             <div className="flex items-center justify-center">
-                 <div className="w-9 h-9 flex items-center justify-center relative">
+                 <div className="w-8 h-8 flex items-center justify-center relative">
                     {!settings.liteMode && <div className="absolute inset-0 bg-vellor-red/20 blur-xl rounded-full"></div>}
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(255,0,51,0.5)]">
                         <path d="M 25 25 L 50 85 L 75 25" fill="none" stroke="#ff0033" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
@@ -353,26 +353,26 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </div>
             </div>
 
-            <div className="w-11 h-11 rounded-2xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl relative cursor-pointer" onClick={() => setActiveModal('profile')}>
+            <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl relative cursor-pointer" onClick={() => setActiveModal('profile')}>
               <img src={userProfile.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar" />
-              <div className="absolute bottom-1 right-1">
+              <div className="absolute bottom-0 right-0">
                  <StatusIndicator status={userProfile.status} size="w-2.5 h-2.5" />
               </div>
             </div>
         </div>
 
         <div className="relative group">
-            <Search className="absolute left-3 top-3 text-white/30 group-focus-within:text-vellor-red transition-colors" size={18} />
+            <Search className="absolute left-3 top-2.5 text-white/30 group-focus-within:text-vellor-red transition-colors" size={16} />
             <input 
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Поиск..." 
-                className="w-full bg-white/5 border border-white/5 rounded-2xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all"
+                className="w-full bg-white/5 border border-white/5 rounded-xl py-2 pl-9 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all"
             />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-3 pt-4 custom-scrollbar relative">
+      <div className="flex-1 overflow-y-auto px-2 pt-2 custom-scrollbar relative">
         {filteredChats.map(chat => {
           const realtimeStatus = onlineUsers.get(chat.id);
           let displayStatus: UserStatus = chat.user.status;
@@ -386,45 +386,47 @@ export const ChatList: React.FC<ChatListProps> = ({
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelectChat(chat.id, chat.user)}
-            className={`flex items-center gap-4 p-3.5 rounded-[1.5rem] cursor-pointer transition-all mb-2 relative group ${activeChatId === chat.id ? 'bg-white/10 shadow-lg border border-white/5' : 'hover:bg-white/[0.03]'}`}
+            className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all mb-1 relative group ${activeChatId === chat.id ? 'bg-white/10 shadow-lg border border-white/5' : 'hover:bg-white/[0.03]'}`}
           >
             {chat.isPinned && <div className="absolute top-2 right-2 text-vellor-red/80"><Pin size={10} fill="currentColor"/></div>}
-            <div className="w-14 h-14 rounded-2xl border border-[var(--border)] overflow-hidden shrink-0 relative bg-black">
+            <div className="w-[50px] h-[50px] rounded-2xl border border-[var(--border)] overflow-hidden shrink-0 relative bg-black">
               <img src={chat.user.avatar || 'https://via.placeholder.com/56'} className="w-full h-full object-cover" alt={chat.user.name} />
               {!chat.user.isGroup && (
-                  <div className="absolute bottom-1 right-1">
+                  <div className="absolute bottom-0 right-0">
                     <StatusIndicator status={displayStatus} />
                   </div>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-baseline mb-1">
-                <h3 className="text-sm font-black truncate flex items-center gap-2">
+              <div className="flex justify-between items-baseline mb-0.5">
+                <h3 className="text-[15px] font-bold truncate flex items-center gap-1.5 text-white/90">
                     {chat.user.name} 
                     {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     {chat.isMuted && <BellOff size={10} className="text-white/30" />}
                 </h3>
-                <span className="text-[10px] opacity-30 font-bold">
+                <span className="text-[10px] opacity-30 font-medium">
                   {chat.lastMessage?.timestamp ? new Date(chat.lastMessage.timestamp).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'}) : ''}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                  <p className="text-xs opacity-40 truncate font-medium max-w-[80%]">
+                  <div className="text-[13px] opacity-50 truncate font-medium max-w-[85%]">
                     {typingUsers[chat.id] ? (
-                      <span className="text-vellor-red animate-pulse">печатает...</span>
+                      <span className="text-vellor-red flex items-center gap-1">
+                          <PenLine size={12} className="animate-pulse" /> печатает...
+                      </span>
                     ) : (
-                      chat.lastMessage?.type === 'audio' ? '🎤 Голосовое' : 
-                      chat.lastMessage?.type === 'image' ? '🖼 Фотография' : 
+                      chat.lastMessage?.type === 'audio' ? <span className="flex items-center gap-1"><Mic size={12}/> Голосовое</span> : 
+                      chat.lastMessage?.type === 'image' ? <span className="flex items-center gap-1"><div className="w-3 h-3 bg-white/20 rounded-sm"/> Фотография</span> : 
                       chat.lastMessage?.text || (chat.user.isGroup ? 'Нет сообщений' : 'Начать общение')
                     )}
-                  </p>
-                  {chat.lastMessage?.senderId === 'me' && (
+                  </div>
+                  {chat.lastMessage?.senderId === 'me' && !typingUsers[chat.id] && (
                       chat.lastMessage.isRead ? <CheckCheck size={14} className="text-vellor-red"/> : <Check size={14} className="text-white/30"/>
                   )}
               </div>
             </div>
             {chat.unreadCount > 0 && (
-                <div className="absolute right-3 bottom-3 bg-vellor-red text-white text-[10px] font-bold px-1.5 py-0.5 rounded-md shadow-lg shadow-vellor-red/20">
+                <div className="absolute right-3 bottom-3 bg-vellor-red text-white text-[10px] font-bold min-w-[18px] h-[18px] flex items-center justify-center px-1 rounded-full shadow-lg shadow-vellor-red/20">
                     {chat.unreadCount}
                 </div>
             )}

@@ -273,6 +273,12 @@ const App: React.FC = () => {
     return { ...defaults, ...parsed };
   });
 
+  // Create a ref for settings to avoid stale closures in event listeners
+  const settingsRef = useRef(settings);
+  useEffect(() => {
+      settingsRef.current = settings;
+  }, [settings]);
+
   // Apply Lite Mode Class
   useEffect(() => {
     if (settings.liteMode) {
@@ -308,11 +314,17 @@ const App: React.FC = () => {
   };
 
   const playNotificationSound = () => {
-      if (!settings.sound || !notificationAudioRef.current) return;
+      // Use ref to get the latest settings without re-binding the socket listener
+      const currentSettings = settingsRef.current;
+      
+      if (!currentSettings.sound || !notificationAudioRef.current) return;
       try {
-          const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === settings.notificationSound) || NOTIFICATION_SOUNDS[0];
+          const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
           
-          if (notificationAudioRef.current.src !== soundDef.url) {
+          // Check if src needs updating (handle relative vs absolute URL check safely)
+          // notificationAudioRef.current.src returns absolute URL (http://...)
+          // soundDef.url is relative (/sound.mp3)
+          if (!notificationAudioRef.current.src.endsWith(soundDef.url)) {
                notificationAudioRef.current.src = soundDef.url;
           }
           
@@ -347,15 +359,16 @@ const App: React.FC = () => {
   }, []);
 
   const sendBrowserNotification = (title: string, body: string, icon?: string) => {
+      const currentSettings = settingsRef.current;
       // Check if notifications are enabled in app settings AND browser permission is granted
-      if (settings.notifications && "Notification" in window && Notification.permission === "granted") {
+      if (currentSettings.notifications && "Notification" in window && Notification.permission === "granted") {
           try {
               // Note: On mobile PWA (iOS 16.4+), this will send a system notification
               // if the app is added to home screen.
               new Notification(title, {
                   body,
                   icon: icon || 'https://via.placeholder.com/128',
-                  silent: !settings.sound, // Mute if sound is off in app settings
+                  silent: !currentSettings.sound, // Mute if sound is off in app settings
                   tag: 'vellor-msg' // Prevent stacking too many
               });
           } catch (e) {
@@ -590,10 +603,20 @@ const App: React.FC = () => {
       // 1. Handle INSERT (New Message)
       if (payload.eventType === 'INSERT' && payload.table === 'messages') {
           const newMsg = payload.new;
-          const chatId = newMsg.group_id || (newMsg.sender_id === userProfileRef.current?.id ? newMsg.receiver_id : newMsg.sender_id);
-          const isMe = newMsg.sender_id === userProfileRef.current?.id;
+          const myId = userProfileRef.current?.id;
 
-          if (!isMe) {
+          // CRITICAL FIX: Filter out messages not intended for this user.
+          const isMine = newMsg.sender_id === myId;
+          const isForMe = newMsg.receiver_id === myId;
+          const isMyGroup = newMsg.group_id && chatsRef.current.some(c => c.id === newMsg.group_id);
+
+          if (!isMine && !isForMe && !isMyGroup) {
+              return; // Ignore unrelated message
+          }
+
+          const chatId = newMsg.group_id || (isMine ? newMsg.receiver_id : newMsg.sender_id);
+
+          if (!isMine) {
               playNotificationSound();
               
               const chat = chatsRef.current.find(c => c.id === chatId);
@@ -621,7 +644,7 @@ const App: React.FC = () => {
              
              const message: Message = {
                  id: newMsg.id,
-                 senderId: isMe ? 'me' : newMsg.sender_id,
+                 senderId: isMine ? 'me' : newMsg.sender_id,
                  text: newMsg.content || '',
                  type: newMsg.type,
                  timestamp: new Date(newMsg.created_at),
@@ -639,7 +662,7 @@ const App: React.FC = () => {
              if (!chat.messages.some(m => m.id === message.id)) {
                  chat.messages = [...chat.messages, message];
                  chat.lastMessage = message;
-                 if (!isMe) chat.unreadCount += 1;
+                 if (!isMine) chat.unreadCount += 1;
              }
              
              updatedChats[chatIndex] = chat;
@@ -676,7 +699,6 @@ const App: React.FC = () => {
       // 4. Handle PROFILE updates (Admin actions / Changes)
       else if (payload.eventType === 'UPDATE' && payload.table === 'profiles') {
           const updatedProfile = payload.new;
-          // const oldProfile = payload.old; // DO NOT USE payload.old due to partial replica identity causing spam
           
           if (updatedProfile.id === userProfileRef.current?.id) {
               // --- NOTIFICATIONS FOR SELF ---
@@ -722,7 +744,7 @@ const App: React.FC = () => {
              }));
           }
       }
-  }, [fetchChats, settings.notifications, settings.sound]);
+  }, [fetchChats]); // Removed 'settings' dependency to avoid listener churn
 
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;

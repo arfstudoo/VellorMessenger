@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, User, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Hash, Smartphone, Pin, Edit2, CornerUpLeft, Clock, Calendar, Users, Music, Crown, LogOut, Search, Plus, Check, Loader2 } from 'lucide-react';
@@ -39,7 +38,7 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
   if (!isOwn) return null;
 
   return (
-    <div className="flex items-center justify-center w-4 h-4 relative ml-0.5">
+    <div className="flex items-center justify-center w-3.5 h-3.5 relative ml-0.5">
        {/* First Check (Sent) */}
        <MSvg 
          viewBox="0 0 24 24" 
@@ -63,7 +62,7 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
        {/* Second Check (Read) */}
        <MSvg 
          viewBox="0 0 24 24" 
-         className="absolute inset-0 w-full h-full left-[5px] -top-[1px]" // Slight offset for double check
+         className="absolute inset-0 w-full h-full left-[4px] -top-[1px]" // Slight offset for double check
          initial="hidden" animate={isRead ? "visible" : "hidden"}
        >
          <MPath 
@@ -104,15 +103,15 @@ const AudioPlayer: React.FC<{ url: string, duration?: string }> = ({ url, durati
   };
 
   return (
-    <div className="flex items-center gap-4 py-2 px-1 min-w-[200px]">
-      <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0">
-        {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" className="ml-0.5"/>}
+    <div className="flex items-center gap-3 py-1.5 px-1 min-w-[180px]">
+      <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0">
+        {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor" className="ml-0.5"/>}
       </button>
-      <div className="flex-1 space-y-1.5">
+      <div className="flex-1 space-y-1">
         <div className="h-1 bg-white/10 rounded-full overflow-hidden w-full"><div className="h-full bg-white transition-all duration-100" style={{ width: `${progress}%` }} /></div>
-        <div className="flex justify-between items-center opacity-40 text-[9px] font-black uppercase tracking-widest">
+        <div className="flex justify-between items-center opacity-50 text-[9px] font-bold">
            <span>{isPlaying ? `${Math.floor(audioRef.current?.currentTime || 0)}s` : (duration || '0:00')}</span>
-           <span>Голосовое</span>
+           <span>Voice</span>
         </div>
       </div>
       <audio ref={audioRef} src={url} className="hidden" />
@@ -499,35 +498,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
         
-        {/* Header */}
-        <div className="h-20 flex items-center justify-between px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
-            <div className="flex items-center gap-4">
-                {isMobile && <button onClick={onBack} className="text-white p-1 hover:bg-white/5 rounded-full"><ArrowLeft size={24}/></button>}
+        {/* Header - Compact for Mobile */}
+        <div className="h-14 md:h-16 flex items-center justify-between px-3 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
+            <div className="flex items-center gap-2 md:gap-4">
+                {isMobile && <button onClick={onBack} className="text-white p-1 hover:bg-white/5 rounded-full"><ArrowLeft size={22}/></button>}
                 <div className="relative cursor-pointer" onClick={() => setShowUserInfo(true)}>
-                    <div className="w-11 h-11 rounded-2xl bg-gray-800 overflow-hidden border border-white/5">
+                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-gray-800 overflow-hidden border border-white/5">
                       <img src={chat.user.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar"/>
                     </div>
                     {!chat.user.isGroup && (
-                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-black ${statusColors[displayStatus] || statusColors.offline}`} />
+                        <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-black ${statusColors[displayStatus] || statusColors.offline}`} />
                     )}
                 </div>
                 <div className="cursor-pointer" onClick={() => setShowUserInfo(true)}>
-                    <h3 className="font-black text-white text-base tracking-tight">{chat.user.name}</h3>
+                    <h3 className="font-bold text-white text-sm md:text-base tracking-tight leading-none mb-0.5">{chat.user.name}</h3>
                     <AnimatePresence mode="wait">
                         {isPartnerTyping ? (
-                          <MP key="typing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] font-black italic text-vellor-red uppercase tracking-widest">печатает...</MP>
+                          <MDiv key="typing" initial={{ opacity: 0, y: 2 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -2 }} className="text-vellor-red flex items-center gap-1">
+                              <span className="text-[11px] font-bold">печатает</span>
+                              <MDiv className="flex gap-0.5">
+                                <MDiv animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: 0 }} className="w-1 h-1 rounded-full bg-vellor-red"/>
+                                <MDiv animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: 0.2 }} className="w-1 h-1 rounded-full bg-vellor-red"/>
+                                <MDiv animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: 0.4 }} className="w-1 h-1 rounded-full bg-vellor-red"/>
+                              </MDiv>
+                          </MDiv>
                         ) : (
-                          <p className="text-[9px] font-black uppercase tracking-widest opacity-40">
+                          <p className="text-[11px] font-medium text-white/40">
                              {getStatusText(displayStatus, !!chat.user.isGroup)}
                           </p>
                         )}
                     </AnimatePresence>
                 </div>
             </div>
-            <div className="flex gap-2">
-                <button onClick={() => onStartCall(chat.id, 'audio')} className="text-white/40 hover:text-white p-2.5 transition-all"><Phone size={20}/></button>
-                <button onClick={() => onStartCall(chat.id, 'video')} className="text-white/40 hover:text-white p-2.5 transition-all"><Video size={20}/></button>
-                <button onClick={() => setShowUserInfo(!showUserInfo)} className="text-white/40 hover:text-white p-2.5 transition-all"><Info size={20}/></button>
+            <div className="flex gap-1 md:gap-2">
+                <button onClick={() => onStartCall(chat.id, 'audio')} className="text-white/40 hover:text-white p-2 transition-all"><Phone size={isMobile ? 18 : 20}/></button>
+                <button onClick={() => onStartCall(chat.id, 'video')} className="text-white/40 hover:text-white p-2 transition-all"><Video size={isMobile ? 18 : 20}/></button>
+                <button onClick={() => setShowUserInfo(!showUserInfo)} className="text-white/40 hover:text-white p-2 transition-all"><Info size={isMobile ? 18 : 20}/></button>
             </div>
         </div>
 
@@ -539,18 +545,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     animate={{ height: 'auto', opacity: 1 }} 
                     exit={{ height: 0, opacity: 0 }}
                     onClick={() => scrollToMessage(pinnedMessage.id)}
-                    className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-6 py-2 cursor-pointer z-20 hover:bg-white/5 transition-colors relative"
+                    className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20 hover:bg-white/5 transition-colors relative"
                 >
-                    <div className="w-0.5 h-8 bg-vellor-red rounded-full" />
+                    <div className="w-0.5 h-6 bg-vellor-red rounded-full" />
                     <div className="flex-1 min-w-0">
-                        <p className="text-[10px] font-black text-vellor-red uppercase tracking-widest mb-0.5">Закрепленное сообщение</p>
-                        <p className="text-xs text-white/80 truncate font-medium">
+                        <p className="text-[9px] font-bold text-vellor-red uppercase">Закрепленное сообщение</p>
+                        <p className="text-[11px] text-white/80 truncate">
                             {pinnedMessage.type === 'image' ? '🖼 Фотография' : 
-                             pinnedMessage.type === 'audio' ? '🎤 Голосовое сообщение' : 
+                             pinnedMessage.type === 'audio' ? '🎤 Голосовое' : 
                              pinnedMessage.type === 'file' ? '📁 Файл' : pinnedMessage.text}
                         </p>
                     </div>
-                    <Pin size={14} className="text-vellor-red fill-vellor-red rotate-45" />
+                    <Pin size={12} className="text-vellor-red fill-vellor-red rotate-45" />
                 </MDiv>
             )}
         </AnimatePresence>
@@ -558,7 +564,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Messages Container */}
         <div 
             ref={messagesContainerRef}
-            className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar relative z-10 scroll-smooth"
+            className="flex-1 overflow-y-auto p-3 md:p-6 space-y-2 custom-scrollbar relative z-10 scroll-smooth"
         >
             {chat.messages.map((msg, index) => {
                 const isMe = msg.senderId === 'me' || msg.senderId === myId;
@@ -594,7 +600,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                         <div 
                             onContextMenu={(e: any) => handleContextMenu(e, msg)}
-                            className={`max-w-[75%] p-2 rounded-2xl relative shadow-2xl border border-white/5 cursor-pointer group mb-4 ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-2 ring-vellor-red/50 shadow-[0_0_15px_rgba(255,0,51,0.2)]' : ''}`}
+                            className={`max-w-[85%] md:max-w-[70%] p-2 rounded-2xl relative shadow-sm border border-white/5 cursor-pointer group mb-4 ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-1 ring-vellor-red/50' : ''}`}
                         >
                             {/* Sender Name in Group (Only for first message in sequence) */}
                             {!isMe && chat.user.isGroup && !isSequence && senderInfo && (
@@ -609,7 +615,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 <MImg 
                                     layoutId={msg.id} 
                                     src={msg.mediaUrl} 
-                                    className="max-w-full rounded-xl border border-white/10" 
+                                    className="max-w-[240px] md:max-w-sm max-h-[300px] w-auto h-auto rounded-lg border border-white/10 object-cover" 
                                     alt="Sent" 
                                 />
                             )}
@@ -625,14 +631,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </div>
                             )}
 
-                            {msg.type === 'text' && <p className="whitespace-pre-wrap leading-relaxed px-3 py-2 text-[13.5px]">{msg.text}</p>}
+                            {msg.type === 'text' && <p className="whitespace-pre-wrap leading-snug px-2 py-1 text-[15px]">{msg.text}</p>}
                             
-                            <div className="flex items-center justify-end gap-1.5 mt-1 px-2 opacity-30 select-none">
-                                {msg.isEdited && <span className="text-[9px] font-black uppercase mr-1">изм.</span>}
-                                <span className="text-[9px] font-black uppercase">{new Date(msg.timestamp).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}</span>
+                            <div className="flex items-center justify-end gap-1 mt-0.5 px-1 opacity-40 select-none">
+                                {msg.isEdited && <span className="text-[9px] mr-1">изм.</span>}
+                                <span className="text-[10px]">{new Date(msg.timestamp).toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}</span>
                                 {isMe && (
                                     isTemp ? (
-                                        <div className="w-3 h-3 border-2 border-white/50 border-t-transparent rounded-full animate-spin ml-0.5" />
+                                        <div className="w-2.5 h-2.5 border-2 border-white/50 border-t-transparent rounded-full animate-spin ml-0.5" />
                                     ) : (
                                         <MessageStatus isRead={msg.isRead} isOwn={true} />
                                     )
@@ -651,7 +657,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
                                             onClick={(e: any) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }}
                                             className={`
-                                                px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg backdrop-blur-md border transition-all
+                                                px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm backdrop-blur-md border transition-all
                                                 ${data.hasReacted 
                                                     ? 'bg-vellor-red/20 border-vellor-red/50 text-white' 
                                                     : 'bg-black/60 border-white/10 text-white/80 hover:bg-white/10'
@@ -678,7 +684,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     style={{ top: contextMenu.y, left: contextMenu.x }}
-                    className="fixed z-[100] w-64 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1"
+                    className="fixed z-[100] w-60 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1"
                     onClick={(e: any) => e.stopPropagation()}
                 >
                     {/* Reaction Bar */}
@@ -689,7 +695,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 whileHover={{ scale: 1.2 }}
                                 whileTap={{ scale: 0.9 }}
                                 onClick={() => handleToggleReaction(contextMenu.message.id, emoji)}
-                                className="text-2xl p-1 transition-transform"
+                                className="text-xl p-1 transition-transform"
                              >
                                  {emoji}
                              </MButton>
@@ -723,25 +729,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
                         
                         {/* Sidebar Header */}
-                        <div className="h-20 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
+                        <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                             <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
-                            <button onClick={() => setShowUserInfo(false)} className="p-2.5 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={20}/></button>
+                            <button onClick={() => setShowUserInfo(false)} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
                         </div>
 
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
                             {/* ... (Existing User Info Content) ... */}
                             <div className="flex flex-col items-center">
-                                <div className="w-40 h-40 rounded-[2.5rem] p-1 border border-white/10 bg-black/50 relative mb-5 shadow-2xl">
-                                    <div className="w-full h-full rounded-[2.2rem] overflow-hidden relative">
+                                <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl">
+                                    <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
                                         <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" />
                                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                                     </div>
                                     {!chat.user.isGroup && (
-                                        <div className={`absolute -bottom-2 -right-2 w-5 h-5 rounded-full border-4 border-[#0a0a0a] ${statusColors[displayStatus] || statusColors.offline}`} />
+                                        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-4 border-[#0a0a0a] ${statusColors[displayStatus] || statusColors.offline}`} />
                                     )}
                                 </div>
                                 
-                                <h1 className="text-3xl font-black text-white text-center mb-1 leading-tight">{chat.user.name}</h1>
+                                <h1 className="text-2xl font-black text-white text-center mb-1 leading-tight">{chat.user.name}</h1>
                                 
                                 <div className="flex items-center gap-2 mb-4">
                                      {chat.user.isGroup ? (
@@ -752,10 +758,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </div>
 
                                 <div className="flex gap-3 w-full justify-center">
-                                     <button className="flex-1 max-w-[120px] py-3 rounded-xl bg-white text-black font-black uppercase text-[10px] tracking-wider hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
+                                     <button className="flex-1 max-w-[120px] py-2.5 rounded-xl bg-white text-black font-black uppercase text-[10px] tracking-wider hover:bg-gray-200 transition-colors flex items-center justify-center gap-2">
                                          <Bell size={14}/> Mute
                                      </button>
-                                     <button className="flex-1 max-w-[120px] py-3 rounded-xl bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-wider hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
+                                     <button className="flex-1 max-w-[120px] py-2.5 rounded-xl bg-white/5 border border-white/10 text-white font-black uppercase text-[10px] tracking-wider hover:bg-white/10 transition-colors flex items-center justify-center gap-2">
                                          <Search size={14}/> Поиск
                                      </button>
                                 </div>
@@ -852,13 +858,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </AnimatePresence>
 
         {/* Input Area */}
-        <div className="p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative">
+        <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-safe-bottom">
              {/* EDITING MODE OVERLAY */}
              {editingMessageId && (
-                 <div className="absolute -top-12 left-0 w-full bg-black/80 backdrop-blur-md border-t border-white/10 p-2 px-6 flex items-center justify-between z-10">
+                 <div className="absolute -top-10 left-0 w-full bg-black/80 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10">
                      <div className="flex items-center gap-3">
                          <Edit2 size={14} className="text-vellor-red"/>
-                         <span className="text-xs font-bold text-white/80">Редактирование сообщения</span>
+                         <span className="text-xs font-bold text-white/80">Редактирование</span>
                      </div>
                      <button onClick={() => { setEditingMessageId(null); setInputText(''); }} className="p-1 hover:text-white text-gray-400"><X size={16}/></button>
                  </div>
@@ -868,59 +874,58 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
              {pendingFile && (
                  <MDiv 
                     initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-                    className="absolute -top-32 left-4 w-48 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20"
+                    className="absolute -top-28 left-4 w-32 md:w-48 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20"
                  >
-                     <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 mb-2 border border-white/5 group">
+                     <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 mb-1 border border-white/5 group">
                          {pendingFile.type === 'image' ? (
                              <img src={pendingFile.url} className="w-full h-full object-cover" />
                          ) : (
                              <div className="w-full h-full flex flex-col items-center justify-center text-white/50">
-                                 <FileText size={32} />
-                                 <span className="text-[9px] uppercase font-black mt-2">File</span>
+                                 <FileText size={24} />
+                                 <span className="text-[9px] uppercase font-black mt-1">File</span>
                              </div>
                          )}
                          <button 
                             onClick={() => setPendingFile(null)}
                             className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-red-500 transition-colors"
                          >
-                             <X size={12} />
+                             <X size={10} />
                          </button>
                      </div>
-                     <p className="text-[10px] text-white/50 truncate px-1 font-mono">{pendingFile.file.name}</p>
                  </MDiv>
              )}
 
-             <div className="flex items-end gap-3 max-w-5xl mx-auto relative">
+             <div className="flex items-end gap-2 max-w-5xl mx-auto relative">
                 {!isRecording ? (
                   <>
                     <div className="relative">
-                        <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3.5 rounded-2xl transition-all ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={22}/></button>
+                        <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3 rounded-2xl transition-all ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={20}/></button>
                         <AnimatePresence>
                             {showAttachments && (
-                                <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-16 left-0 w-48 bg-black/95 border border-white/10 p-2 rounded-2xl shadow-2xl overflow-hidden z-[100]">
-                                    <button onClick={() => triggerFileUpload('image')} className="flex items-center gap-3 w-full p-4 hover:bg-white/5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
-                                    <button onClick={() => triggerFileUpload('file')} className="flex items-center gap-3 w-full p-4 hover:bg-white/5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"><FileText size={16} className="text-vellor-red"/> Файл</button>
+                                <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-14 left-0 w-40 bg-black/95 border border-white/10 p-1.5 rounded-2xl shadow-2xl overflow-hidden z-[100]">
+                                    <button onClick={() => triggerFileUpload('image')} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
+                                    <button onClick={() => triggerFileUpload('file')} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors"><FileText size={16} className="text-vellor-red"/> Файл</button>
                                 </MDiv>
                             )}
                         </AnimatePresence>
                     </div>
 
-                    <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl focus-within:border-vellor-red/40 transition-all flex items-end px-2 relative">
-                        <button onClick={() => setShowEmojis(!showEmojis)} className={`p-3.5 transition-colors ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={22}/></button>
+                    <div className="flex-1 bg-white/5 border border-white/10 rounded-[1.2rem] focus-within:border-vellor-red/40 transition-all flex items-end px-2 relative min-h-[44px]">
                         <textarea 
                             value={inputText} 
                             onChange={handleInputChange} 
                             onPaste={handlePaste}
                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())} 
-                            placeholder={pendingFile ? "Добавить подпись..." : "Сообщение..."}
-                            className="w-full bg-transparent text-white py-4 px-1 max-h-40 min-h-[54px] resize-none outline-none custom-scrollbar text-sm" 
+                            placeholder={pendingFile ? "Подпись..." : "Сообщение..."}
+                            className="w-full bg-transparent text-white py-3 px-2 max-h-32 min-h-[44px] resize-none outline-none custom-scrollbar text-[15px] leading-snug" 
                         />
+                        <button onClick={() => setShowEmojis(!showEmojis)} className={`p-2.5 mb-0.5 transition-colors ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={20}/></button>
                         
                         <AnimatePresence>
                            {showEmojis && (
-                             <MDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-[60px] left-0 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 grid grid-cols-6 gap-2 w-64 shadow-2xl z-50">
+                             <MDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-[50px] right-0 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-2 grid grid-cols-6 gap-1 w-64 shadow-2xl z-50">
                                 {EMOJIS.map(emoji => (
-                                  <button key={emoji} onClick={() => setInputText(prev => prev + emoji)} className="text-xl p-2 hover:bg-white/10 rounded-lg transition-colors">{emoji}</button>
+                                  <button key={emoji} onClick={() => setInputText(prev => prev + emoji)} className="text-xl p-1.5 hover:bg-white/10 rounded-lg transition-colors">{emoji}</button>
                                 ))}
                              </MDiv>
                            )}
@@ -928,17 +933,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     </div>
 
                     {inputText.trim() || pendingFile ? (
-                        <button onClick={handleSend} disabled={isUploading} className="p-4 bg-vellor-red rounded-2xl text-white shadow-[0_10px_20px_rgba(255,0,51,0.3)] active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100">
-                            {isUploading ? <Loader2 className="animate-spin" size={22}/> : (editingMessageId ? <Check size={22}/> : <Send size={22}/>)}
+                        <button onClick={handleSend} disabled={isUploading} className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100">
+                            {isUploading ? <Loader2 className="animate-spin" size={20}/> : (editingMessageId ? <Check size={20}/> : <Send size={20}/>)}
                         </button>
                     ) : (
-                        <button onClick={startRecording} className="p-4 rounded-2xl bg-white/5 text-gray-400 hover:text-vellor-red hover:bg-white/10 transition-all"><Mic size={22}/></button>
+                        <button onClick={startRecording} className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:text-vellor-red hover:bg-white/10 transition-all"><Mic size={20}/></button>
                     )}
                   </>
                 ) : (
-                  <MDiv initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex items-center justify-between bg-vellor-red/10 border border-vellor-red/20 rounded-[2rem] p-2 pr-4 h-[54px]">
+                  <MDiv initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex items-center justify-between bg-vellor-red/10 border border-vellor-red/20 rounded-[2rem] p-2 pr-4 h-[44px]">
                     <div className="flex items-center gap-4 pl-4"><MDiv animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-2.5 h-2.5 rounded-full bg-vellor-red" /><span className="text-sm font-black text-white font-mono">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span></div>
-                    <div className="flex items-center gap-3"><button onClick={() => stopRecording(false)} className="p-2.5 text-white/40 hover:text-white transition-colors"><Trash2 size={20}/></button><button onClick={() => stopRecording(true)} className="p-2.5 bg-vellor-red rounded-full text-white"><StopCircle size={20}/></button></div>
+                    <div className="flex items-center gap-3"><button onClick={() => stopRecording(false)} className="p-2 text-white/40 hover:text-white transition-colors"><Trash2 size={18}/></button><button onClick={() => stopRecording(true)} className="p-2 bg-vellor-red rounded-full text-white"><StopCircle size={18}/></button></div>
                   </MDiv>
                 )}
              </div>
