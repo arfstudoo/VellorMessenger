@@ -99,6 +99,8 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
   const [playingSoundId, setPlayingSoundId] = useState<string | null>(null);
 
+  const isMobile = window.innerWidth < 768; // Simple check for mobile optimization within logic
+
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener('click', handleClick);
@@ -350,7 +352,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             
             <div className="flex items-center justify-center">
                  <div className="w-8 h-8 flex items-center justify-center relative">
-                    {!settings.liteMode && <div className="absolute inset-0 bg-vellor-red/20 blur-xl rounded-full"></div>}
+                    {!settings.liteMode && !isMobile && <div className="absolute inset-0 bg-vellor-red/20 blur-xl rounded-full"></div>}
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(255,0,51,0.5)]">
                         <path d="M 25 25 L 50 85 L 75 25" fill="none" stroke="#ff0033" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -363,7 +365,11 @@ export const ChatList: React.FC<ChatListProps> = ({
                  <StatusIndicator status={userProfile.status} size="w-2.5 h-2.5" />
               </div>
               {isSuperAdmin && (
-                  <div className="absolute -top-1.5 -right-1.5 bg-black/80 rounded-full p-0.5 border border-yellow-500/50 shadow-lg shadow-yellow-500/20" title="Administrator">
+                  <div 
+                    title="Администратор"
+                    onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
+                    className="absolute -top-1.5 -right-1.5 bg-black/80 rounded-full p-0.5 border border-yellow-500/50 shadow-lg shadow-yellow-500/20"
+                  >
                       <Crown size={10} className="text-yellow-400 fill-yellow-400" />
                   </div>
               )}
@@ -390,9 +396,9 @@ export const ChatList: React.FC<ChatListProps> = ({
           return (
           <MDiv 
             key={chat.id} 
-            layout={!settings.liteMode} 
+            layout={!settings.liteMode && !isMobile} // Disable layout animation on mobile
             onContextMenu={(e: any) => handleContextMenu(e, chat)}
-            whileHover={{ scale: 1.01 }}
+            whileHover={!isMobile ? { scale: 1.01 } : {}} // Disable hover scale on mobile
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelectChat(chat.id, chat.user)}
             className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all mb-1 relative group ${activeChatId === chat.id ? 'bg-white/10 shadow-lg border border-white/5' : 'hover:bg-white/[0.03]'}`}
@@ -410,9 +416,23 @@ export const ChatList: React.FC<ChatListProps> = ({
               <div className="flex justify-between items-baseline mb-0.5">
                 <h3 className="text-[15px] font-bold truncate flex items-center gap-1.5 text-white/90">
                     {chat.user.name} 
-                    {/* Admin Check for Chat List items (if needed) - assumes we have data */}
-                    {chat.user.username?.toLowerCase() === 'arfstudoo' && <Crown size={12} className="text-yellow-400 fill-yellow-400" />}
-                    {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
+                    {/* Admin Check for Chat List items */}
+                    {chat.user.username?.toLowerCase() === 'arfstudoo' && (
+                        <div 
+                            title="Администратор"
+                            onClick={(e) => { e.stopPropagation(); showToast("Этот пользователь — Администратор", "info"); }}
+                        >
+                            <Crown size={12} className="text-yellow-400 fill-yellow-400" />
+                        </div>
+                    )}
+                    {chat.user.isVerified && (
+                        <div
+                            title="Верифицированный пользователь"
+                            onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
+                        >
+                            <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />
+                        </div>
+                    )}
                     {chat.isMuted && <BellOff size={10} className="text-white/30" />}
                 </h3>
                 <span className="text-[10px] opacity-30 font-medium">
@@ -482,8 +502,22 @@ export const ChatList: React.FC<ChatListProps> = ({
                  <p className="text-white font-bold flex items-center gap-2">
                      {userProfile.name}
                      {/* Admin Crown in Menu */}
-                     {isSuperAdmin && <Crown size={14} className="text-yellow-400 fill-yellow-400" />}
-                     {userProfile.isVerified && <BadgeCheck size={14} className="text-blue-400 fill-blue-400/20" />}
+                     {isSuperAdmin && (
+                         <div
+                            title="Администратор"
+                            onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
+                         >
+                            <Crown size={14} className="text-yellow-400 fill-yellow-400" />
+                         </div>
+                     )}
+                     {userProfile.isVerified && (
+                         <div
+                            title="Верифицированный пользователь"
+                            onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
+                         >
+                            <BadgeCheck size={14} className="text-blue-400 fill-blue-400/20" />
+                         </div>
+                     )}
                  </p>
                  <p className="text-xs text-white/50">@{userProfile.username}</p>
               </div>
@@ -720,7 +754,11 @@ export const ChatList: React.FC<ChatListProps> = ({
                       
                       {/* Special Admin Badge Overlay */}
                       {isSuperAdmin && (
-                          <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20" title="Administrator">
+                          <div 
+                            title="Администратор"
+                            onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
+                            className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20 cursor-pointer hover:scale-110 transition-transform"
+                          >
                               <Crown size={20} className="text-yellow-400 fill-yellow-400" />
                           </div>
                       )}
@@ -729,7 +767,15 @@ export const ChatList: React.FC<ChatListProps> = ({
                     <div className="text-center">
                         <h2 className="text-2xl font-black text-white mb-1 flex items-center justify-center gap-2">
                             {userProfile.name}
-                            {userProfile.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
+                            {userProfile.isVerified && (
+                                <div
+                                    title="Верифицированный пользователь"
+                                    onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
+                                    className="cursor-pointer"
+                                >
+                                    <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />
+                                </div>
+                            )}
                         </h2>
                         <div 
                            className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 cursor-pointer hover:bg-white/10 transition-colors"

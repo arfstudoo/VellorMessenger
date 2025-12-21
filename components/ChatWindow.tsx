@@ -4,6 +4,7 @@ import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-mo
 import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Smartphone, Pin, Edit2, Crown, LogOut, Plus, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus } from '../types';
 import { supabase } from '../supabaseClient';
+import { ToastType } from './Toast';
 
 const MDiv = motion.div as any;
 const MImg = motion.img as any;
@@ -26,6 +27,7 @@ interface ChatWindowProps {
   onDeleteMessage: (id: string) => void;
   onPinMessage: (id: string, currentStatus: boolean) => void;
   onlineUsers: Map<string, UserStatus>;
+  showToast: (msg: string, type: ToastType) => void;
 }
 
 const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎉", "👻", "👀", "🙌", "💀", "😊", "🤔", "🤣", "😍", "😒", "😭", "😩", "😤", "👋", "🙏", "🤝", "👌", "✨", "💯", "🚀", "🍕", "🍺", "⚽️"];
@@ -119,7 +121,7 @@ const SwipeableMessage = ({ children, onReply, isMe }: { children: React.ReactNo
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
-    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers
+    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast
 }) => {
   const [inputText, setInputText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -355,11 +357,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5 flex items-center gap-1.5">
                         {chat.user.name}
                         {isSuperAdmin && (
-                            <div title="Administrator">
+                            <div 
+                                title="Администратор"
+                                onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
+                            >
                                 <Crown size={12} className="text-yellow-400 fill-yellow-400" />
                             </div>
                         )}
-                        {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
+                        {chat.user.isVerified && (
+                            <div
+                                title="Верифицированный пользователь"
+                                onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
+                            >
+                                <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />
+                            </div>
+                        )}
                     </h3>
                     {isPartnerTyping ? (
                         <p className="text-[10px] text-vellor-red font-bold animate-pulse">печатает...</p>
@@ -525,7 +537,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" />
                             </div>
                             {isSuperAdmin && (
-                                <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20" title="Administrator">
+                                <div 
+                                    title="Администратор"
+                                    onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
+                                    className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20 cursor-pointer hover:scale-110 transition-transform"
+                                >
                                     <Crown size={20} className="text-yellow-400 fill-yellow-400" />
                                 </div>
                             )}
@@ -534,7 +550,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <div className="text-center space-y-1">
                             <h1 className="text-2xl font-black text-white flex items-center justify-center gap-2">
                                 {chat.user.name}
-                                {chat.user.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
+                                {chat.user.isVerified && (
+                                    <div
+                                        title="Верифицированный пользователь"
+                                        onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
+                                        className="cursor-pointer"
+                                    >
+                                        <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />
+                                    </div>
+                                )}
                             </h1>
                             <p className="text-sm text-white/40 font-mono">@{chat.user.username}</p>
                         </div>

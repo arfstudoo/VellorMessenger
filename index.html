@@ -78,7 +78,47 @@
       .mirror-mode { transform: scaleX(-1); }
       textarea, input { background: transparent; color: inherit; border: none; outline: none; }
 
-      /* LITE MODE OPTIMIZATIONS (Performance) */
+      /* LITE MODE & MOBILE HARDCORE OPTIMIZATIONS */
+      /* Rules apply if body has .lite-mode OR screen is smaller than 768px (Phones) */
+      @media (max-width: 768px) {
+        * {
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
+          transition-property: opacity, transform !important; /* Only animate cheap properties */
+        }
+
+        /* Replace glass effect with solid dark colors for performance */
+        .backdrop-blur-3xl,
+        .backdrop-blur-2xl,
+        .backdrop-blur-xl,
+        .backdrop-blur-md,
+        .backdrop-blur-sm,
+        [class*="backdrop-blur"],
+        .glass-panel,
+        .bg-white\/5,
+        .bg-black\/30,
+        .bg-black\/40,
+        .bg-black\/50 {
+          background-color: #080808 !important; /* Solid nearly black */
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        /* Ensure text remains visible on solid backgrounds */
+        input, textarea {
+            background-color: transparent !important;
+        }
+        
+        /* Disable hover effects on touch devices to prevent sticky states */
+        .hover\:scale-110:hover, 
+        .hover\:scale-105:hover,
+        .hover\:bg-white\/10:hover {
+            transform: none !important;
+            background-color: inherit !important;
+        }
+      }
+
       body.lite-mode * {
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
@@ -88,21 +128,9 @@
       
       body.lite-mode .backdrop-blur-3xl,
       body.lite-mode .backdrop-blur-2xl,
-      body.lite-mode .backdrop-blur-xl,
-      body.lite-mode .backdrop-blur-md,
-      body.lite-mode .backdrop-blur-sm,
       body.lite-mode [class*="backdrop-blur"] {
         background-color: rgba(5, 5, 5, 0.98) !important;
         border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      }
-
-      body.lite-mode .glass-panel {
-        background: #111 !important;
-      }
-      
-      /* Restore subtle borders in lite mode since shadows are gone */
-      body.lite-mode div {
-        border-color: rgba(255,255,255,0.08);
       }
     </style>
   <script type="importmap">

@@ -888,11 +888,14 @@ const App: React.FC = () => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
-      {/* Disable pulsing blob in lite mode to save GPU */}
-      {settings.pulsing && !settings.liteMode && <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
       
-      {/* Static gradient for lite mode instead */}
-      {settings.liteMode && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
+      {/* Disable pulsing blob on mobile (isMobile check) to save huge amount of GPU/CPU */}
+      {settings.pulsing && !settings.liteMode && !isMobile && (
+          <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />
+      )}
+      
+      {/* Static gradient for lite mode or mobile instead */}
+      {(settings.liteMode || isMobile) && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
 
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
@@ -929,7 +932,7 @@ const App: React.FC = () => {
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
-                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} />
+                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}
