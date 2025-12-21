@@ -11,7 +11,7 @@ import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, Use
 import { supabase } from './supabaseClient';
 import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck } from 'lucide-react';
 // import { RealtimeChannel } from '@supabase/supabase-js';
-import { NOTIFICATION_SOUNDS } from './constants';
+import { NOTIFICATION_SOUNDS, CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK } from './constants';
 
 const MDiv = motion.div as any;
 
@@ -88,28 +88,14 @@ const THEMES_CONFIG = {
   }
 };
 
-// Use local file for ringtone. Ensure 'ringtone.mp3' exists in your public folder.
-const CALL_RINGTONE = "/ringtone.mp3"; 
-
-const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (With Auto-Admin Fix)
+const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (With Reply Support)
 -- Run in Supabase SQL Editor
 
 -- 1. CLEANUP
 DROP FUNCTION IF EXISTS get_my_messenger_data();
 DROP FUNCTION IF EXISTS claim_admin();
 
--- 2. RESET POLICIES (Fixes RLS Errors)
-DROP POLICY IF EXISTS "Enable all for groups" ON groups;
-DROP POLICY IF EXISTS "Enable all for members" ON group_members;
-DROP POLICY IF EXISTS "Enable all for messages" ON messages;
-DROP POLICY IF EXISTS "Enable read access for all users" ON groups;
-DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON groups;
-DROP POLICY IF EXISTS "Enable all for profiles" ON profiles;
-DROP POLICY IF EXISTS "Public read profiles" ON profiles;
-DROP POLICY IF EXISTS "Owner or Admin update profiles" ON profiles;
-DROP POLICY IF EXISTS "Insert profiles" ON profiles;
-
--- 3. SCHEMA
+-- 2. SCHEMA UPDATE
 DO $$ 
 BEGIN 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'group_members' AND column_name = 'is_admin') THEN
@@ -130,23 +116,32 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'reactions') THEN
     ALTER TABLE messages ADD COLUMN reactions JSONB DEFAULT '[]'::jsonb;
   END IF;
+  -- NEW: Reply Support
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'reply_to_id') THEN
+    ALTER TABLE messages ADD COLUMN reply_to_id UUID REFERENCES messages(id) ON DELETE SET NULL;
+  END IF;
 END $$;
 
 ALTER TABLE messages ALTER COLUMN receiver_id DROP NOT NULL;
 
--- 4. RLS POLICIES
+-- 3. RLS POLICIES
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Enable all for groups" ON groups;
+DROP POLICY IF EXISTS "Enable all for members" ON group_members;
+DROP POLICY IF EXISTS "Enable all for messages" ON messages;
+DROP POLICY IF EXISTS "Public read profiles" ON profiles;
+DROP POLICY IF EXISTS "Owner or Admin update profiles" ON profiles;
+DROP POLICY IF EXISTS "Insert profiles" ON profiles;
+
 CREATE POLICY "Enable all for groups" ON groups FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for members" ON group_members FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for messages" ON messages FOR ALL USING (true) WITH CHECK (true);
 
--- Allow reading all profiles
 CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
--- Allow updating if it's your profile OR you are an admin
 CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
   auth.uid() = id OR 
   (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
@@ -156,7 +151,7 @@ CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
 );
 CREATE POLICY "Insert profiles" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
--- 5. AUTO-ADMIN FUNCTION
+-- 4. AUTO-ADMIN FUNCTION
 CREATE OR REPLACE FUNCTION claim_admin()
 RETURNS void AS $$
 BEGIN
@@ -165,7 +160,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 6. DATA FETCH FUNCTION
+-- 5. DATA FETCH FUNCTION
 CREATE OR REPLACE FUNCTION get_my_messenger_data()
 RETURNS json AS $$
 DECLARE
@@ -193,7 +188,7 @@ BEGIN
       FROM (
         SELECT m.id, m.sender_id, m.group_id, m.content, m.created_at, m.type,
                m.media_url, m.is_pinned, m.is_edited, m.file_name, m.file_size, m.duration,
-               m.reactions,
+               m.reactions, m.reply_to_id,
                CASE 
                  WHEN m.sender_id = _user_id THEN false 
                  WHEN m.created_at <= gm.last_read_at THEN true
@@ -210,7 +205,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- 7. REFRESH
+-- 6. REFRESH
 NOTIFY pgrst, 'reload config';
 `;
 
@@ -237,9 +232,9 @@ const App: React.FC = () => {
   const userProfileRef = useRef<UserProfile | null>(null);
   const presenceChannelRef = useRef<any | null>(null);
 
-  // Audio Refs (New approach using <audio> tags)
-  const notificationAudioRef = useRef<HTMLAudioElement>(null);
-  const ringtoneAudioRef = useRef<HTMLAudioElement>(null);
+  // Audio Context Ref (Better for iOS)
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const ringtoneSourceRef = useRef<AudioBufferSourceNode | null>(null);
 
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [tempChatUser, setTempChatUser] = useState<User | null>(null);
@@ -288,12 +283,30 @@ const App: React.FC = () => {
     }
   }, [settings.liteMode]);
 
-  // Mobile Audio Unlock Strategy (Ensures sounds play on iOS/Android PWA)
+  // --- AUDIO SYSTEM (iOS Compatible) ---
+  const initAudioContext = () => {
+      if (!audioContextRef.current) {
+          const AudioContextClass = (window.AudioContext || (window as any).webkitAudioContext);
+          if (AudioContextClass) {
+              audioContextRef.current = new AudioContextClass();
+          }
+      }
+      if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+          audioContextRef.current.resume();
+      }
+  };
+
   useEffect(() => {
     const unlockAudio = () => {
-        // Play a silent buffer to unlock the audio context
-        const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAAABmYWN0BAAAAAAAAABkYXRhAAAAAA==");
-        audio.play().catch(() => {});
+        initAudioContext();
+        // Play silent buffer to unlock
+        if (audioContextRef.current) {
+            const buffer = audioContextRef.current.createBuffer(1, 1, 22050);
+            const source = audioContextRef.current.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContextRef.current.destination);
+            source.start(0);
+        }
         document.removeEventListener('click', unlockAudio);
         document.removeEventListener('touchstart', unlockAudio);
     };
@@ -305,6 +318,65 @@ const App: React.FC = () => {
     }
   }, []);
 
+  const playSound = async (url: string, fallbackUrl?: string, loop: boolean = false) => {
+      if (!settingsRef.current.sound) return;
+      initAudioContext();
+      if (!audioContextRef.current) return;
+
+      try {
+          const ctx = audioContextRef.current;
+          
+          const loadBuffer = async (path: string) => {
+              const response = await fetch(path);
+              if (!response.ok) throw new Error('Fetch failed');
+              const arrayBuffer = await response.arrayBuffer();
+              return await ctx.decodeAudioData(arrayBuffer);
+          };
+
+          let audioBuffer;
+          try {
+              audioBuffer = await loadBuffer(url);
+          } catch (e) {
+              if (fallbackUrl) {
+                  console.warn(`Local sound ${url} not found, using fallback.`);
+                  audioBuffer = await loadBuffer(fallbackUrl);
+              } else {
+                  throw e;
+              }
+          }
+
+          const source = ctx.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(ctx.destination);
+          source.loop = loop;
+          source.start(0);
+          return source;
+      } catch (e) {
+          console.error("Audio Play Failed:", e);
+      }
+  };
+
+  const playNotificationSound = async () => {
+      const currentSettings = settingsRef.current;
+      const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
+      await playSound(soundDef.url, soundDef.fallback);
+  };
+
+  const startRingtone = async () => {
+      if (ringtoneSourceRef.current) return; // Already playing
+      const source = await playSound(CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK, true);
+      if (source) {
+          ringtoneSourceRef.current = source;
+      }
+  };
+
+  const stopRingtone = () => {
+      if (ringtoneSourceRef.current) {
+          try { ringtoneSourceRef.current.stop(); } catch(e) {}
+          ringtoneSourceRef.current = null;
+      }
+  };
+
   const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean; icon?: string }>({ 
     message: '', type: 'info', visible: false 
   });
@@ -313,39 +385,11 @@ const App: React.FC = () => {
     setToast({ message, type, visible: true, icon });
   };
 
-  const playNotificationSound = () => {
-      // Use ref to get the latest settings without re-binding the socket listener
-      const currentSettings = settingsRef.current;
-      
-      if (!currentSettings.sound || !notificationAudioRef.current) return;
-      try {
-          const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
-          
-          // Check if src needs updating (handle relative vs absolute URL check safely)
-          // notificationAudioRef.current.src returns absolute URL (http://...)
-          // soundDef.url is relative (/sound.mp3)
-          if (!notificationAudioRef.current.src.endsWith(soundDef.url)) {
-               notificationAudioRef.current.src = soundDef.url;
-          }
-          
-          notificationAudioRef.current.volume = 0.6;
-          notificationAudioRef.current.currentTime = 0;
-          notificationAudioRef.current.play().catch(e => console.warn("Audio play blocked (interaction required)", e));
-      } catch (e) {
-          console.error("Audio error", e);
-      }
-  };
-
   // --- NOTIFICATION PERMISSIONS ---
   const requestNotificationPermission = useCallback(async () => {
       if (!("Notification" in window)) return;
-      
-      // Check if permission is already granted
       if (Notification.permission === 'granted') return;
-
       if (Notification.permission === 'default') {
-          // On mobile/PWA, we often need user interaction to request permission.
-          // We'll show a friendly toast first.
           showToast("Включите уведомления, чтобы не пропускать сообщения", "info");
           try {
               const permission = await Notification.requestPermission();
@@ -360,16 +404,13 @@ const App: React.FC = () => {
 
   const sendBrowserNotification = (title: string, body: string, icon?: string) => {
       const currentSettings = settingsRef.current;
-      // Check if notifications are enabled in app settings AND browser permission is granted
       if (currentSettings.notifications && "Notification" in window && Notification.permission === "granted") {
           try {
-              // Note: On mobile PWA (iOS 16.4+), this will send a system notification
-              // if the app is added to home screen.
               new Notification(title, {
                   body,
                   icon: icon || 'https://via.placeholder.com/128',
-                  silent: !currentSettings.sound, // Mute if sound is off in app settings
-                  tag: 'vellor-msg' // Prevent stacking too many
+                  silent: !currentSettings.sound, 
+                  tag: 'vellor-msg'
               });
           } catch (e) {
               console.error("Notification failed", e);
@@ -471,39 +512,21 @@ const App: React.FC = () => {
                     state: 'incoming', type: payload.type, partnerId: callerProfile.id,
                     partnerName: callerProfile.full_name, partnerAvatar: callerProfile.avatar_url, isCaller: false
                 });
-                
-                // Play Ringtone using Ref
-                if (ringtoneAudioRef.current) {
-                    try {
-                        ringtoneAudioRef.current.currentTime = 0;
-                        ringtoneAudioRef.current.volume = 0.7;
-                        const promise = ringtoneAudioRef.current.play();
-                        if (promise !== undefined) {
-                            promise.catch(e => console.warn("Ringtone blocked", e));
-                        }
-                    } catch(e) {}
-                }
+                startRingtone();
             }
         })
         .subscribe();
     
     return () => { 
         supabase.removeChannel(mySignalingChannel); 
-        // Stop Ringtone on cleanup
-        if (ringtoneAudioRef.current) {
-            ringtoneAudioRef.current.pause();
-            ringtoneAudioRef.current.currentTime = 0;
-        }
+        stopRingtone();
     };
   }, [appState, userProfile.id]);
 
   // Handle Call End / Answer (Stop Ringtone)
   useEffect(() => {
       if (!callData || callData.state === 'connected' || callData.state === 'ended') {
-          if (ringtoneAudioRef.current) {
-              ringtoneAudioRef.current.pause();
-              ringtoneAudioRef.current.currentTime = 0;
-          }
+          stopRingtone();
       }
   }, [callData]);
 
@@ -575,7 +598,8 @@ const App: React.FC = () => {
                   mediaUrl: msg.media_url, isPinned: msg.is_pinned, isEdited: msg.is_edited,
                   duration: msg.duration, fileName: msg.file_name, fileSize: msg.file_size,
                   groupId: msg.group_id,
-                  reactions: msg.reactions || [] // Map reactions from DB
+                  reactions: msg.reactions || [],
+                  replyToId: msg.reply_to_id
                 };
                 if (!chat.messages.some(ex => ex.id === m.id)) chat.messages.push(m);
                 if (!chat.lastMessage.timestamp || m.timestamp > chat.lastMessage.timestamp) chat.lastMessage = m;
@@ -656,7 +680,8 @@ const App: React.FC = () => {
                  fileName: newMsg.file_name,
                  fileSize: newMsg.file_size,
                  groupId: newMsg.group_id,
-                 reactions: newMsg.reactions || []
+                 reactions: newMsg.reactions || [],
+                 replyToId: newMsg.reply_to_id
              };
 
              if (!chat.messages.some(m => m.id === message.id)) {
@@ -744,7 +769,7 @@ const App: React.FC = () => {
              }));
           }
       }
-  }, [fetchChats]); // Removed 'settings' dependency to avoid listener churn
+  }, [fetchChats]);
 
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
@@ -763,12 +788,13 @@ const App: React.FC = () => {
   }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats]);
 
   // --- ACTIONS ---
-  const sendMessage = async (chatId: string, text: string, type: MessageType = 'text', mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string) => {
+  const sendMessage = async (chatId: string, text: string, type: MessageType = 'text', mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => {
     const isGroup = chats.find(c => c.id === chatId)?.user.isGroup;
     const payload: any = { 
         sender_id: userProfile.id, content: text || '', type: type,
         media_url: mediaUrl || null, duration: duration || null,
         file_name: fileName || null, file_size: fileSize || null,
+        reply_to_id: replyToId || null,
         created_at: new Date().toISOString()
     };
     if (isGroup) { payload.group_id = chatId; payload.receiver_id = null; } 
@@ -848,10 +874,6 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
-      {/* NATIVE AUDIO ELEMENTS FOR RELIABLE PLAYBACK */}
-      <audio ref={notificationAudioRef} className="hidden" preload="auto" />
-      <audio ref={ringtoneAudioRef} src={CALL_RINGTONE} loop className="hidden" preload="auto" />
-
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
       {/* Disable pulsing blob in lite mode to save GPU */}
       {settings.pulsing && !settings.liteMode && <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
@@ -892,7 +914,7 @@ const App: React.FC = () => {
                   <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={() => {}} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} />
               )}
             </div>
-            <div className="flex-1 h-full bg-black/10 relative">
+            <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
                 <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} />
               ) : (

@@ -1,8 +1,7 @@
 
-
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Bell, Info, CheckCircle, AlertTriangle, MessageCircle } from 'lucide-react';
+import { X, CheckCircle, AlertTriangle, MessageCircle } from 'lucide-react';
 
 const MDiv = motion.div as any;
 
@@ -19,14 +18,14 @@ interface ToastProps {
 export const Toast: React.FC<ToastProps> = ({ message, type = 'info', isVisible, onClose, icon }) => {
   useEffect(() => {
     if (isVisible) {
-      const timer = setTimeout(onClose, 5000); // Чуть дольше висит, чтобы успеть прочитать
+      const timer = setTimeout(onClose, 5000); 
       return () => clearTimeout(timer);
     }
   }, [isVisible, onClose]);
 
   const variants = {
     hidden: { y: -20, opacity: 0, scale: 0.95, filter: 'blur(10px)' },
-    visible: { y: 20, opacity: 1, scale: 1, filter: 'blur(0px)' },
+    visible: { y: 10, opacity: 1, scale: 1, filter: 'blur(0px)' }, // Reduced y offset
     exit: { y: -20, opacity: 0, scale: 0.95, filter: 'blur(10px)' }
   };
 
@@ -46,7 +45,7 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'info', isVisible,
     <AnimatePresence>
       {isVisible && (
         <MDiv
-          className="fixed top-0 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm pointer-events-none"
+          className="fixed top-2 left-0 right-0 mx-auto z-[9999] w-[92%] max-w-[360px] pointer-events-none"
           variants={variants}
           initial="hidden"
           animate="visible"
@@ -55,46 +54,45 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'info', isVisible,
         >
           <div className={`
             pointer-events-auto
-            bg-[#050505]/80 backdrop-blur-2xl 
+            bg-[#050505]/95 backdrop-blur-2xl 
             border ${style.border} 
-            rounded-[1.5rem] p-4 
+            rounded-2xl p-3
             ${style.glow}
-            flex items-center gap-4 relative overflow-hidden
+            flex items-center gap-3 relative overflow-hidden shadow-2xl
           `}>
-            {/* Декоративный шум/текстура */}
+            {/* Texture */}
             <div className="absolute inset-0 opacity-[0.03] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')]" />
             
-            {/* Аватар или Иконка */}
+            {/* Icon/Avatar */}
             <div className="relative shrink-0">
                 {icon ? (
-                    <div className="w-12 h-12 rounded-2xl overflow-hidden border border-white/10 shadow-inner">
+                    <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 shadow-inner">
                         <img src={icon} className="w-full h-full object-cover" alt="" />
                     </div>
                 ) : (
-                    <div className={`w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center border border-white/5 ${style.iconColor}`}>
-                        <IconComponent size={24} />
+                    <div className={`w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/5 ${style.iconColor}`}>
+                        <IconComponent size={20} />
                     </div>
                 )}
-                {/* Индикатор типа (точка) */}
-                <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-black flex items-center justify-center`}>
-                    <div className={`w-2.5 h-2.5 rounded-full ${type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-vellor-red'}`} />
+                <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-black flex items-center justify-center`}>
+                    <div className={`w-2 h-2 rounded-full ${type === 'error' ? 'bg-red-500' : type === 'success' ? 'bg-green-500' : 'bg-vellor-red'}`} />
                 </div>
             </div>
             
             <div className="flex-1 min-w-0 z-10">
-              <h4 className="text-white text-[13px] font-black uppercase tracking-wide mb-0.5 drop-shadow-md">
-                {type === 'success' ? 'Успешно' : type === 'error' ? 'Ошибка' : 'Новое сообщение'}
+              <h4 className="text-white text-[11px] font-black uppercase tracking-wide mb-0.5 drop-shadow-md">
+                {type === 'success' ? 'Успешно' : type === 'error' ? 'Ошибка' : 'Сообщение'}
               </h4>
-              <p className="text-white/70 text-xs font-medium leading-snug line-clamp-2">
+              <p className="text-white/80 text-[11px] font-medium leading-snug line-clamp-2">
                 {message}
               </p>
             </div>
 
             <button 
                 onClick={onClose} 
-                className="p-2 -mr-2 text-white/20 hover:text-white transition-colors z-10 active:scale-90"
+                className="p-1.5 -mr-1 text-white/30 hover:text-white transition-colors z-10 active:scale-90 bg-white/5 rounded-lg"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
         </MDiv>

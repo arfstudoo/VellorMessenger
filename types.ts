@@ -67,6 +67,7 @@ export interface Message {
   isPinned?: boolean;
   isEdited?: boolean;
   reactions?: Reaction[];
+  replyToId?: string;
 }
 
 export interface Chat {
