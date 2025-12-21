@@ -229,9 +229,21 @@ const App: React.FC = () => {
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('vellor_settings');
-    // Default pulsing to true if not present
-    return saved ? { pulsing: true, ...JSON.parse(saved) } : { sound: true, notifications: true, pulsing: true };
+    // Default pulsing to true if not present, sound/notifications to true
+    const defaults = { sound: true, notifications: true, pulsing: true, liteMode: false };
+    if (!saved) return defaults;
+    const parsed = JSON.parse(saved);
+    return { ...defaults, ...parsed };
   });
+
+  // Apply Lite Mode Class
+  useEffect(() => {
+    if (settings.liteMode) {
+      document.body.classList.add('lite-mode');
+    } else {
+      document.body.classList.remove('lite-mode');
+    }
+  }, [settings.liteMode]);
 
   const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean; icon?: string }>({ 
     message: '', type: 'info', visible: false 
@@ -648,7 +660,12 @@ const App: React.FC = () => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
-      {settings.pulsing && <motion.div key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
+      {/* Disable pulsing blob in lite mode to save GPU */}
+      {settings.pulsing && !settings.liteMode && <motion.div key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
+      
+      {/* Static gradient for lite mode instead */}
+      {settings.liteMode && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
+
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
 

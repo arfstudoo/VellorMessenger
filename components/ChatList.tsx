@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -17,8 +17,8 @@ interface ChatListProps {
   onSetTheme: (theme: string) => void;
   currentThemeId: string;
   onUpdateStatus: (status: UserStatus) => void;
-  settings: { sound: boolean; notifications: boolean; pulsing?: boolean };
-  onUpdateSettings: (s: { sound: boolean; notifications: boolean; pulsing?: boolean }) => void;
+  settings: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean };
+  onUpdateSettings: (s: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean }) => void;
   typingUsers: Record<string, boolean>;
   onChatAction: (chatId: string, action: 'pin' | 'mute' | 'delete') => void;
   showToast: (msg: string, type: ToastType) => void;
@@ -269,7 +269,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             
             <div className="flex items-center justify-center">
                  <div className="w-9 h-9 flex items-center justify-center relative">
-                    <div className="absolute inset-0 bg-vellor-red/20 blur-xl rounded-full"></div>
+                    {!settings.liteMode && <div className="absolute inset-0 bg-vellor-red/20 blur-xl rounded-full"></div>}
                     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_10px_rgba(255,0,51,0.5)]">
                         <path d="M 25 25 L 50 85 L 75 25" fill="none" stroke="#ff0033" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
@@ -298,23 +298,14 @@ export const ChatList: React.FC<ChatListProps> = ({
       <div className="flex-1 overflow-y-auto px-3 pt-4 custom-scrollbar relative">
         {filteredChats.map(chat => {
           // Determine realtime status
-          // Check if user is in the online map (connected to socket)
           const realtimeStatus = onlineUsers.get(chat.id);
-          
-          let displayStatus: UserStatus = chat.user.status; // Default to DB status
-          
-          if (realtimeStatus) {
-              // If connected via socket, use the realtime status (online, away, dnd)
-              displayStatus = realtimeStatus;
-          } else {
-              // Not in map -> Offline
-              displayStatus = 'offline';
-          }
+          let displayStatus: UserStatus = chat.user.status;
+          if (realtimeStatus) displayStatus = realtimeStatus; else displayStatus = 'offline';
           
           return (
           <motion.div 
             key={chat.id} 
-            layout
+            layout={!settings.liteMode} // Disable expensive layout animation in lite mode
             onContextMenu={(e) => handleContextMenu(e, chat)}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -466,9 +457,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                           <div className="flex justify-center py-8"><Loader2 className="animate-spin text-vellor-red"/></div>
                       ) : (
                           <div className="space-y-2">
-                              {/* If search query is empty, allow global search results to be empty, but could show recent contacts here too if desired, 
-                                  but logic above clears globalSearchResults on empty query. */}
-                              
                               {globalSearchResults.map(user => (
                                   <button key={user.id} onClick={() => { onSelectChat(user.id, user); setActiveModal(null); }} className="w-full p-3 flex items-center gap-4 hover:bg-white/5 rounded-2xl transition-all text-left">
                                       <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden shrink-0">
@@ -624,6 +612,22 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
                    </section>
 
+                   {/* Performance Mode - NEW */}
+                   <section>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Производительность</h3>
+                      <div className="bg-white/5 border border-white/5 rounded-[20px] overflow-hidden">
+                          <div className="p-4 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white/5 rounded-xl"><BatteryCharging size={18} className="text-green-400"/></div>
+                                  <div className="flex flex-col"><span className="text-sm font-bold">Экономия ресурсов</span><span className="text-[10px] opacity-40">Lite Mode (Без размытия)</span></div>
+                              </div>
+                              <button onClick={() => onUpdateSettings({...settings, liteMode: !settings.liteMode})} className={`w-11 h-6 rounded-full relative transition-colors ${settings.liteMode ? 'bg-green-500' : 'bg-white/10'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${settings.liteMode ? 'left-6' : 'left-1'}`} />
+                              </button>
+                          </div>
+                      </div>
+                   </section>
+
                    {/* Appearance Section */}
                    <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Тема оформления</h3>
@@ -736,7 +740,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                       <p className="text-xs text-white/70 leading-relaxed text-center">Вы настраиваете видимость для: <br/><strong className="text-white text-sm uppercase tracking-wider">{currentPrivacyLabel}</strong></p>
                    </div>
                    {(['everybody', 'contacts', 'nobody'] as PrivacyValue[]).map((val) => (
-                      <button key={val} onClick={() => { onUpdateProfile({ ...userProfile, [currentPrivacyKey!]: val }); setActiveModal('privacy'); }} className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all group ${userProfile[currentPrivacyKey!] === val ? 'border-vellor-red bg-vellor-red/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
+                      <button key={val} onClick={() => { onUpdateProfile({ ...userProfile, [currentPrivacyKey!] : val }); setActiveModal('privacy'); }} className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all group ${userProfile[currentPrivacyKey!] === val ? 'border-vellor-red bg-vellor-red/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
                          <div className="flex items-center gap-3">
                              {val === 'everybody' && <Eye size={18} className={userProfile[currentPrivacyKey!] === val ? "text-vellor-red" : "text-white/40"}/>}
                              {val === 'contacts' && <User size={18} className={userProfile[currentPrivacyKey!] === val ? "text-vellor-red" : "text-white/40"}/>}

@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf, AlertCircle } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -93,6 +93,22 @@ const THEMES: Record<AuthTheme, {
     }
 };
 
+const getFriendlyErrorMessage = (errorMsg: string): string => {
+    if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit") || errorMsg.includes("429")) {
+        return "Слишком частые запросы. Пожалуйста, подождите 1 минуту перед повторной попыткой.";
+    }
+    if (errorMsg.includes("User already registered")) {
+        return "Пользователь с таким email уже зарегистрирован.";
+    }
+    if (errorMsg.includes("Invalid login credentials")) {
+        return "Неверный email или пароль.";
+    }
+    if (errorMsg.includes("validation failed")) {
+        return "Проверьте правильность введенных данных.";
+    }
+    return errorMsg; // Fallback to original message if unknown
+};
+
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const [mode, setMode] = useState<'login' | 'register'>('register');
   const [step, setStep] = useState(1);
@@ -177,13 +193,14 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
   const handleLogin = async () => {
       setLoading(true);
+      setErrors({}); // Clear previous errors
       const { data, error } = await supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password
       });
 
       if (error) {
-          setErrors({ form: error.message });
+          setErrors({ form: getFriendlyErrorMessage(error.message) });
           setLoading(false);
           return;
       }
@@ -221,6 +238,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
   const handleRegister = async () => {
       setLoading(true);
+      setErrors({}); // Clear previous errors
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -237,7 +255,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
       });
 
       if (authError) {
-          setErrors({ form: authError.message });
+          setErrors({ form: getFriendlyErrorMessage(authError.message) });
           setLoading(false);
           return;
       }
@@ -289,6 +307,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
         e.preventDefault();
+        if (loading) return;
         if (mode === 'login') {
              handleFirstStepNext();
         } else {
@@ -392,6 +411,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                                         <input 
                                             type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} onKeyDown={handleKeyDown}
                                             placeholder="Email" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-medium" autoFocus
+                                            autoComplete="email"
                                         />
                                     </div>
                                     {errors.email && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide ml-1">{errors.email}</p>}
@@ -403,13 +423,19 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                                         <input 
                                             type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} onKeyDown={handleKeyDown}
                                             placeholder="Пароль" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-medium"
+                                            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
                                         />
                                     </div>
                                     {errors.password && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide ml-1">{errors.password}</p>}
                                 </div>
                             </div>
 
-                            {errors.form && <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl"><p className="text-red-500 text-xs text-center font-bold">{errors.form}</p></div>}
+                            {errors.form && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                                    <AlertCircle size={20} className="text-red-500 shrink-0" />
+                                    <p className="text-red-500 text-xs font-bold leading-tight">{errors.form}</p>
+                                </motion.div>
+                            )}
 
                             <div className="mt-auto pt-6">
                                 <button 
@@ -440,8 +466,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                             {errors.username && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide mt-2 ml-1">{errors.username}</p>}
                             
                             <div className="mt-auto pt-6 flex gap-3">
-                                <button onClick={prevStep} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5"><ChevronLeft size={24} /></button>
-                                <button onClick={nextStep} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98]">Далее</button>
+                                <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
+                                <button onClick={nextStep} disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50">Далее</button>
                             </div>
                         </motion.div>
                     )}
@@ -461,8 +487,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                                 </div>
                             </div>
                             <div className="mt-auto pt-6 flex gap-3">
-                                <button onClick={prevStep} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5"><ChevronLeft size={24} /></button>
-                                <button onClick={nextStep} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98]">Далее</button>
+                                <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
+                                <button onClick={nextStep} disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50">Далее</button>
                             </div>
                         </motion.div>
                     )}
@@ -481,8 +507,15 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                                  <input type="file" ref={fileInputRef} onChange={handleAvatarUpload} accept="image/*" className="hidden" />
                              </div>
                              
+                             {errors.form && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 w-full">
+                                    <AlertCircle size={20} className="text-red-500 shrink-0" />
+                                    <p className="text-red-500 text-xs font-bold leading-tight">{errors.form}</p>
+                                </motion.div>
+                             )}
+
                              <div className="mt-auto w-full pt-6 flex gap-3">
-                                 <button onClick={prevStep} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5"><ChevronLeft size={24} /></button>
+                                 <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
                                  <button onClick={handleRegister} disabled={loading} className={`flex-1 ${theme.buttonGradient} text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 hover:brightness-110`}>
                                      {loading ? <Loader2 className="animate-spin" /> : 'Завершить'} {!loading && <Check size={18} />}
                                  </button>
