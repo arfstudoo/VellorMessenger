@@ -1,0 +1,82 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
+    <title>VellorMessenger</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              vellor: {
+                black: '#000000',
+                dark: '#0a0a0a',
+                glass: 'rgba(255, 255, 255, 0.05)',
+                glassBorder: 'rgba(255, 255, 255, 0.1)',
+                red: '#ff0033',
+                crimson: '#DC143C',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #000000;
+        --panel: rgba(20, 20, 20, 0.6);
+        --accent: #ff0033;
+        --text: #ffffff;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden; /* Запрет скролла body */
+        width: 100%;
+        height: 100%;
+        position: fixed; /* Жесткая фиксация */
+        top: 0;
+        left: 0;
+        overscroll-behavior: none; /* Отключение эффекта "резинки" на Mac/iOS */
+      }
+      ::-webkit-scrollbar { width: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+      
+      .glass-panel {
+        background: var(--panel);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 1px solid var(--border);
+      }
+      .mirror-mode { transform: scaleX(-1); }
+      textarea, input { background: transparent; color: inherit; border: none; outline: none; }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.559.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.26",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

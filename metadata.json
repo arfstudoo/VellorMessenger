@@ -1,0 +1,8 @@
+{
+  "name": "VellorMessenger",
+  "description": "A premium, dark-themed messenger with glassmorphism aesthetics and cinematic animations.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
