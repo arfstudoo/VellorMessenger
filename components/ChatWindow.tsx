@@ -301,11 +301,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setMediaRecorder(null); 
   };
 
-  // Helpers
+  // Improved Sender Info Lookup
   const getSenderInfo = (senderId: string) => {
-      if (senderId === 'me' || senderId === myId) return null;
-      if (chat.user.isGroup && groupMembers.length > 0) return groupMembers.find(m => m.user.id === senderId)?.user;
-      return chat.user;
+      if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
+      
+      // If group, look in fetched members
+      if (chat.user.isGroup && groupMembers.length > 0) {
+          const member = groupMembers.find(m => m.user.id === senderId)?.user;
+          if (member) return member;
+      }
+      
+      // If DM, it's likely the chat partner
+      if (!chat.user.isGroup && senderId === chat.user.id) {
+          return chat.user;
+      }
+
+      // Fallback
+      return { name: 'Unknown', avatar: '', id: senderId };
   };
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
@@ -368,6 +380,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {chat.messages.map((msg, index) => {
                 const isMe = msg.senderId === 'me' || msg.senderId === myId;
                 const senderInfo = getSenderInfo(msg.senderId);
+                
+                // Reply Lookup
+                const replyParent = msg.replyToId ? chat.messages.find(m => m.id === msg.replyToId) : null;
+                const replySender = replyParent ? getSenderInfo(replyParent.senderId) : null;
+
                 const reactionsGrouped = (msg.reactions || []).reduce((acc, r) => {
                     if (!acc[r.emoji]) acc[r.emoji] = { count: 0, hasReacted: false };
                     acc[r.emoji].count += 1;
@@ -375,18 +392,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     return acc;
                 }, {} as Record<string, { count: number, hasReacted: boolean }>);
 
-                // Reply Logic: Find parent message if exists (assuming we added replyToId support in DB/Interface)
-                // For now, we will simulate reply display if "text" starts with "> " or handle it via a new property if we added one. 
-                // Since interface doesn't strictly have `replyTo` linked object yet, we can't show "Reply to X" perfectly without fetch. 
-                // But the UI needs to be ready. 
-                
                 return (
                     <MDiv key={msg.id} id={`msg-${msg.id}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full">
                         <SwipeableMessage isMe={isMe} onReply={() => setReplyingTo(msg)}>
                             <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
                                 {!isMe && chat.user.isGroup && (
                                     <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10">
-                                        {senderInfo ? <img src={senderInfo.avatar || 'https://via.placeholder.com/24'} className="w-full h-full object-cover" /> : <div className="w-full h-full" />}
+                                        {senderInfo && senderInfo.avatar ? <img src={senderInfo.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-700" />}
                                     </div>
                                 )}
 
@@ -394,8 +406,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                     onContextMenu={(e: any) => handleContextMenu(e, msg)}
                                     className={`max-w-[85%] md:max-w-[70%] p-2 rounded-2xl relative shadow-sm border border-white/5 cursor-pointer group ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-1 ring-vellor-red/50' : ''}`}
                                 >
-                                    {/* Reply Context in Bubble (Mockup for now as we need real linking) */}
-                                    {/* {msg.replyToId && <div className="border-l-2 border-white/50 pl-2 mb-1 opacity-60 text-xs truncate">Replying to...</div>} */}
+                                    {/* --- REPLY VISUALIZATION --- */}
+                                    {replyParent && (
+                                        <div onClick={(e) => { e.stopPropagation(); scrollToMessage(replyParent.id); }} className="mb-1.5 rounded-lg bg-black/20 p-1.5 flex gap-2 items-center border-l-2 border-vellor-red/70 overflow-hidden cursor-pointer hover:bg-black/30 transition-colors">
+                                            <div className="flex-1 min-w-0">
+                                                <p className="text-[10px] font-bold text-vellor-red truncate">{replySender?.name || 'Unknown'}</p>
+                                                <p className="text-[10px] text-white/60 truncate">
+                                                    {replyParent.type === 'image' ? 'Фотография' : replyParent.type === 'audio' ? 'Голосовое' : replyParent.text}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
 
                                     {!isMe && chat.user.isGroup && <p className="text-[10px] font-bold text-vellor-red mb-1 ml-1">{senderInfo?.name}</p>}
                                     {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}
@@ -504,7 +525,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                          <div className="flex flex-col min-w-0">
                              <div className="flex items-center gap-2">
                                  {editingMessageId ? <Edit2 size={12} className="text-vellor-red"/> : <Reply size={12} className="text-vellor-red"/>}
-                                 <span className="text-[10px] font-bold text-vellor-red uppercase tracking-wide">{editingMessageId ? 'Редактирование' : `Ответ ${replyingTo?.senderId === myId ? 'себе' : ''}`}</span>
+                                 <span className="text-[10px] font-bold text-vellor-red uppercase tracking-wide">{editingMessageId ? 'Редактирование' : `Ответ ${replyingTo?.senderId === 'me' || replyingTo?.senderId === myId ? 'себе' : ''}`}</span>
                              </div>
                              <p className="text-xs text-white/70 truncate max-w-[200px]">{editingMessageId ? 'Исправьте сообщение' : replyingTo?.text || 'Медиа'}</p>
                          </div>
