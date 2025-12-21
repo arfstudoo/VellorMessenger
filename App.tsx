@@ -11,7 +11,7 @@ import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, Use
 import { supabase } from './supabaseClient';
 import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck } from 'lucide-react';
 import { RealtimeChannel } from '@supabase/supabase-js';
-import { NOTIFICATION_SOUND_URL } from './constants';
+import { NOTIFICATION_SOUNDS } from './constants';
 
 const MDiv = motion.div as any;
 
@@ -90,13 +90,14 @@ const THEMES_CONFIG = {
 
 const CALL_RINGTONE = "https://cdn.freesound.org/previews/344/344153_5723683-lq.mp3"; 
 
-const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (Fixes Warnings & Adds Admin Features)
+const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (With Auto-Admin Fix)
 -- Run in Supabase SQL Editor
 
--- 1. CLEANUP: Drop Function first
+-- 1. CLEANUP
 DROP FUNCTION IF EXISTS get_my_messenger_data();
+DROP FUNCTION IF EXISTS claim_admin();
 
--- 2. CLEANUP: Drop ALL existing policies to fix warnings
+-- 2. RESET POLICIES (Fixes RLS Errors)
 DROP POLICY IF EXISTS "Enable all for groups" ON groups;
 DROP POLICY IF EXISTS "Enable all for members" ON group_members;
 DROP POLICY IF EXISTS "Enable all for messages" ON messages;
@@ -107,7 +108,7 @@ DROP POLICY IF EXISTS "Public read profiles" ON profiles;
 DROP POLICY IF EXISTS "Owner or Admin update profiles" ON profiles;
 DROP POLICY IF EXISTS "Insert profiles" ON profiles;
 
--- 3. SCHEMA: Ensure columns exist
+-- 3. SCHEMA
 DO $$ 
 BEGIN 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'group_members' AND column_name = 'is_admin') THEN
@@ -132,7 +133,7 @@ END $$;
 
 ALTER TABLE messages ALTER COLUMN receiver_id DROP NOT NULL;
 
--- 4. RLS: Re-enable and set policies
+-- 4. RLS POLICIES
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
@@ -142,8 +143,9 @@ CREATE POLICY "Enable all for groups" ON groups FOR ALL USING (true) WITH CHECK 
 CREATE POLICY "Enable all for members" ON group_members FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for messages" ON messages FOR ALL USING (true) WITH CHECK (true);
 
--- Allow anyone to read profiles, but only owner OR admin to update
+-- Allow reading all profiles
 CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
+-- Allow updating if it's your profile OR you are an admin
 CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
   auth.uid() = id OR 
   (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
@@ -153,17 +155,16 @@ CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
 );
 CREATE POLICY "Insert profiles" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
 
-
--- 5. REALTIME: Safe addition
-DO $$
+-- 5. AUTO-ADMIN FUNCTION
+CREATE OR REPLACE FUNCTION claim_admin()
+RETURNS void AS $$
 BEGIN
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE messages; EXCEPTION WHEN OTHERS THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE group_members; EXCEPTION WHEN OTHERS THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE groups; EXCEPTION WHEN OTHERS THEN NULL; END;
-  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE profiles; EXCEPTION WHEN OTHERS THEN NULL; END;
-END $$;
+  -- Sets the caller as admin and verified
+  UPDATE profiles SET is_admin = true, is_verified = true WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 6. FUNCTION: Optimized logic with SECURITY DEFINER
+-- 6. DATA FETCH FUNCTION
 CREATE OR REPLACE FUNCTION get_my_messenger_data()
 RETURNS json AS $$
 DECLARE
@@ -239,7 +240,12 @@ const App: React.FC = () => {
   const [tempChatUser, setTempChatUser] = useState<User | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
-  const [currentTheme, setCurrentTheme] = useState<keyof typeof THEMES_CONFIG>('crimson');
+  
+  // Theme state with localStorage persistence
+  const [currentTheme, setCurrentTheme] = useState<keyof typeof THEMES_CONFIG>(() => {
+      const saved = localStorage.getItem('vellor_theme');
+      return (saved && THEMES_CONFIG[saved as keyof typeof THEMES_CONFIG]) ? (saved as keyof typeof THEMES_CONFIG) : 'crimson';
+  });
   
   // Call State
   const [callData, setCallData] = useState<CallSession | null>(null);
@@ -255,8 +261,8 @@ const App: React.FC = () => {
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('vellor_settings');
-    // Default pulsing to true if not present, sound/notifications to true
-    const defaults = { sound: true, notifications: true, pulsing: true, liteMode: false };
+    // Default pulsing to true if not present, sound/notifications to true, notificationSound to default
+    const defaults = { sound: true, notifications: true, pulsing: true, liteMode: false, notificationSound: 'default' };
     if (!saved) return defaults;
     const parsed = JSON.parse(saved);
     return { ...defaults, ...parsed };
@@ -271,6 +277,23 @@ const App: React.FC = () => {
     }
   }, [settings.liteMode]);
 
+  // Mobile Audio Unlock Strategy (Ensures sounds play on iOS/Android PWA)
+  useEffect(() => {
+    const unlockAudio = () => {
+        // Play a silent buffer to unlock the audio context
+        const audio = new Audio("data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEAQB8AAEAfAAABAAgAAABmYWN0BAAAAAAAAABkYXRhAAAAAA==");
+        audio.play().catch(() => {});
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+    };
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
+    return () => {
+        document.removeEventListener('click', unlockAudio);
+        document.removeEventListener('touchstart', unlockAudio);
+    }
+  }, []);
+
   const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean; icon?: string }>({ 
     message: '', type: 'info', visible: false 
   });
@@ -282,7 +305,8 @@ const App: React.FC = () => {
   const playNotificationSound = () => {
       if (!settings.sound) return;
       try {
-          const audio = new Audio(NOTIFICATION_SOUND_URL);
+          const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === settings.notificationSound) || NOTIFICATION_SOUNDS[0];
+          const audio = new Audio(soundDef.url);
           audio.volume = 0.6;
           audio.play().catch(e => console.warn("Audio play blocked (interaction required)", e));
       } catch (e) {
@@ -294,8 +318,13 @@ const App: React.FC = () => {
   const requestNotificationPermission = useCallback(async () => {
       if (!("Notification" in window)) return;
       
+      // Check if permission is already granted
+      if (Notification.permission === 'granted') return;
+
       if (Notification.permission === 'default') {
-          showToast("Пожалуйста, разрешите уведомления, чтобы не пропускать сообщения", "info");
+          // On mobile/PWA, we often need user interaction to request permission.
+          // We'll show a friendly toast first.
+          showToast("Включите уведомления, чтобы не пропускать сообщения", "info");
           try {
               const permission = await Notification.requestPermission();
               if (permission === 'granted') {
@@ -308,12 +337,16 @@ const App: React.FC = () => {
   }, []);
 
   const sendBrowserNotification = (title: string, body: string, icon?: string) => {
+      // Check if notifications are enabled in app settings AND browser permission is granted
       if (settings.notifications && "Notification" in window && Notification.permission === "granted") {
           try {
+              // Note: On mobile PWA (iOS 16.4+), this will send a system notification
+              // if the app is added to home screen.
               new Notification(title, {
                   body,
                   icon: icon || 'https://via.placeholder.com/128',
-                  silent: !settings.sound // Mute if sound is off in app settings, let app handle sound
+                  silent: !settings.sound, // Mute if sound is off in app settings
+                  tag: 'vellor-msg' // Prevent stacking too many
               });
           } catch (e) {
               console.error("Notification failed", e);
@@ -350,12 +383,14 @@ const App: React.FC = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Update Theme & Save to LocalStorage
   useEffect(() => {
     const root = document.documentElement;
     const theme = THEMES_CONFIG[currentTheme];
     Object.entries(theme).forEach(([key, val]) => { 
         if (key !== 'wallpaper') root.style.setProperty(key, val as string); 
     });
+    localStorage.setItem('vellor_theme', currentTheme);
   }, [currentTheme]);
 
   // --- PRESENCE LOGIC ---
@@ -628,9 +663,12 @@ const App: React.FC = () => {
                   showToast("Права Администратора отозваны.", "error");
               }
 
-              // 3. Username Changed by Admin (assuming user didn't do it themselves via the app UI just now)
-              // We can't distinguish who did it easily without logs, but a toast is fine anyway.
-              if (oldProfile.username !== updatedProfile.username) {
+              // 3. Username Changed by Admin
+              // We compare with local ref to ensure we don't notify on self-updates or unrelated updates (like status) 
+              // where oldProfile.username might be undefined due to Supabase REPLICA IDENTITY settings.
+              if (userProfileRef.current?.username && 
+                  updatedProfile.username && 
+                  userProfileRef.current.username !== updatedProfile.username) {
                   showToast(`Ваш юзернейм изменен на @${updatedProfile.username}`, "info");
               }
 
@@ -778,7 +816,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {appState === 'app' && (
-        <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full h-full flex overflow-hidden bg-transparent" style={{ color: 'var(--text)' }}>
+        <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full flex overflow-hidden bg-transparent h-[100dvh]" style={{ color: 'var(--text)' }}>
             <div className={`${isMobile && activeChatId ? 'hidden' : 'w-full md:w-[380px] lg:w-[420px]'} h-full border-r border-[var(--border)] bg-black/30 backdrop-blur-3xl flex flex-col shrink-0`}>
               {isDatabaseError ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-6 overflow-y-auto custom-scrollbar">

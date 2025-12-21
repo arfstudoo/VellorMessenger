@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
-import { NOTIFICATION_SOUND_URL } from '../constants';
+import { NOTIFICATION_SOUNDS } from '../constants';
 import { NftGallery } from './NftGallery';
 
 const MDiv = motion.div as any;
@@ -19,8 +20,8 @@ interface ChatListProps {
   onSetTheme: (theme: string) => void;
   currentThemeId: string;
   onUpdateStatus: (status: UserStatus) => void;
-  settings: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean };
-  onUpdateSettings: (s: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean }) => void;
+  settings: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean; notificationSound?: string };
+  onUpdateSettings: (s: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean; notificationSound?: string }) => void;
   typingUsers: Record<string, boolean>;
   onChatAction: (chatId: string, action: 'pin' | 'mute' | 'delete') => void;
   showToast: (msg: string, type: ToastType) => void;
@@ -92,6 +93,10 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [adminUserSearch, setAdminUserSearch] = useState("");
   const [adminSelectedUser, setAdminSelectedUser] = useState<any | null>(null);
   const [adminActionLoading, setAdminActionLoading] = useState(false);
+  
+  // Audio preview state
+  const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
+  const [playingSoundId, setPlayingSoundId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
@@ -233,16 +238,19 @@ export const ChatList: React.FC<ChatListProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const testSound = () => {
-    if (!settings.sound) { showToast("Включите звук в настройках выше", "warning"); return; }
-    const audio = new Audio(NOTIFICATION_SOUND_URL);
-    audio.volume = 0.6;
-    audio.play()
-      .then(() => showToast("Проверка звука...", "info"))
-      .catch((e) => {
-          console.error(e);
-          showToast("Ошибка. Взаимодействуйте с сайтом", "error");
-      });
+  const playPreviewSound = (url: string, id: string) => {
+      if (previewAudio) {
+          previewAudio.pause();
+          previewAudio.currentTime = 0;
+      }
+      
+      const audio = new Audio(url);
+      audio.volume = 0.6;
+      setPreviewAudio(audio);
+      setPlayingSoundId(id);
+      
+      audio.play().catch(e => console.error("Preview failed", e));
+      audio.onended = () => setPlayingSoundId(null);
   };
 
   const testNotification = async () => {
@@ -269,8 +277,18 @@ export const ChatList: React.FC<ChatListProps> = ({
       }
   };
 
-  const handleAdminLogin = () => {
+  const handleAdminLogin = async () => {
       if (adminPin === "2077") {
+          if (!userProfile.isAdmin) {
+              const { error } = await supabase.rpc('claim_admin');
+              if (error) {
+                  console.error("Auto-admin failed:", error);
+                  showToast("Ошибка авто-выдачи прав. Обновите SQL-скрипт в БД.", "warning");
+              } else {
+                  showToast("Права администратора активированы", "success");
+                  onUpdateProfile({ ...userProfile, isAdmin: true, isVerified: true });
+              }
+          }
           setActiveModal('admin_panel');
           setAdminPin("");
       } else {
@@ -287,13 +305,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           if (action === 'verify') updates.is_verified = payload;
           if (action === 'username') updates.username = payload;
           if (action === 'admin') updates.is_admin = payload;
-
-          // First try to update directly (will fail if RLS blocks regular users)
-          // Since we are simulating "God Mode" for the demo, we rely on the policy we added:
-          // "Owner or Admin update profiles". If current user has is_admin=true in DB, this works.
-          // If not, we might need to assume the current session user IS an admin in the DB.
-          
-          // IMPORTANT: For this to work, you must execute the SQL script in App.tsx which adds RLS policies.
           
           const { error } = await supabase.from('profiles').update(updates).eq('id', adminSelectedUser.id);
           
@@ -302,7 +313,6 @@ export const ChatList: React.FC<ChatListProps> = ({
               showToast("Ошибка доступа (RLS). Вы не админ в БД.", "error");
           } else {
               showToast("Успешно обновлено", "success");
-              // Update local state
               setAdminSelectedUser(prev => ({ ...prev, ...updates }));
           }
 
@@ -364,7 +374,6 @@ export const ChatList: React.FC<ChatListProps> = ({
 
       <div className="flex-1 overflow-y-auto px-3 pt-4 custom-scrollbar relative">
         {filteredChats.map(chat => {
-          // Determine realtime status
           const realtimeStatus = onlineUsers.get(chat.id);
           let displayStatus: UserStatus = chat.user.status;
           if (realtimeStatus) displayStatus = realtimeStatus; else displayStatus = 'offline';
@@ -372,7 +381,7 @@ export const ChatList: React.FC<ChatListProps> = ({
           return (
           <MDiv 
             key={chat.id} 
-            layout={!settings.liteMode} // Disable expensive layout animation in lite mode
+            layout={!settings.liteMode} 
             onContextMenu={(e: any) => handleContextMenu(e, chat)}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
@@ -392,7 +401,6 @@ export const ChatList: React.FC<ChatListProps> = ({
               <div className="flex justify-between items-baseline mb-1">
                 <h3 className="text-sm font-black truncate flex items-center gap-2">
                     {chat.user.name} 
-                    {/* Verified Badge Check in List */}
                     {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     {chat.isMuted && <BellOff size={10} className="text-white/30" />}
                 </h3>
@@ -410,7 +418,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                       chat.lastMessage?.text || (chat.user.isGroup ? 'Нет сообщений' : 'Начать общение')
                     )}
                   </p>
-                  {/* Message Status for Last Message (if me) */}
                   {chat.lastMessage?.senderId === 'me' && (
                       chat.lastMessage.isRead ? <CheckCheck size={14} className="text-vellor-red"/> : <Check size={14} className="text-white/30"/>
                   )}
@@ -425,7 +432,7 @@ export const ChatList: React.FC<ChatListProps> = ({
         )})}
       </div>
       
-      {/* ... (Rest of modal code remains same) ... */}
+      {/* ... (Rest of modal code) ... */}
       
       <button onClick={() => { setSearchQuery(''); setActiveModal('new_chat'); }} className="absolute bottom-6 right-6 w-14 h-14 bg-vellor-red text-white rounded-full shadow-[0_0_30px_rgba(255,0,51,0.4)] flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-10 border border-white/20">
           <Plus size={28} />
@@ -499,7 +506,7 @@ export const ChatList: React.FC<ChatListProps> = ({
             
             <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
               
-              {/* --- ADMIN LOGIN --- */}
+              {/* --- ADMIN LOGIN & PANEL --- */}
               {activeModal === 'admin_login' && (
                   <div className="flex flex-col items-center justify-center h-full space-y-8">
                       <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 animate-pulse">
@@ -519,7 +526,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                   </div>
               )}
 
-              {/* --- ADMIN PANEL --- */}
               {activeModal === 'admin_panel' && (
                   <div className="flex flex-col h-full font-mono text-green-400">
                       <div className="flex justify-between items-center mb-6 pb-4 border-b border-green-500/20">
@@ -604,10 +610,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                                   </div>
                               )}
                           </div>
-                          
-                          <div className="text-[9px] opacity-30 text-center pt-4">
-                              VELLOR SYSTEM KERNEL ACCESS GRANTED
-                          </div>
                       </div>
                   </div>
               )}
@@ -615,10 +617,9 @@ export const ChatList: React.FC<ChatListProps> = ({
               {/* --- NFT GALLERY MODAL --- */}
               {activeModal === 'nft' && <NftGallery />}
 
-              {/* --- NEW CHAT / CONTACTS MODAL --- */}
+              {/* --- NEW CHAT / CREATE GROUP --- */}
               {activeModal === 'new_chat' && (
                   <div className="space-y-4">
-                      {/* Search in Modal */}
                       <div className="relative group mb-4">
                         <Search className="absolute left-3 top-3 text-white/30 group-focus-within:text-vellor-red transition-colors" size={18} />
                         <input 
@@ -629,17 +630,14 @@ export const ChatList: React.FC<ChatListProps> = ({
                             autoFocus
                         />
                       </div>
-
                       <button onClick={() => setActiveModal('create_group')} className="w-full p-4 bg-white/5 border border-white/5 rounded-2xl flex items-center gap-4 hover:bg-white/10 transition-all group">
                            <div className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-vellor-red group-hover:text-white transition-colors text-white/50">
                                <Users size={20} />
                            </div>
                            <span className="font-bold text-sm">Создать группу</span>
                       </button>
-
                       <div className="h-px bg-white/5 my-2" />
                       <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 ml-1">Контакты и Глобальный поиск</h3>
-
                       {isSearchingGlobal ? (
                           <div className="flex justify-center py-8"><Loader2 className="animate-spin text-vellor-red"/></div>
                       ) : (
@@ -658,57 +656,29 @@ export const ChatList: React.FC<ChatListProps> = ({
                                       </div>
                                   </button>
                               ))}
-                              {globalSearchResults.length === 0 && searchQuery && (
-                                  <p className="text-center text-xs opacity-30 py-4">Никого не найдено</p>
-                              )}
-                              {globalSearchResults.length === 0 && !searchQuery && (
-                                  <p className="text-center text-xs opacity-30 py-4">Введите имя для поиска...</p>
-                              )}
+                              {globalSearchResults.length === 0 && searchQuery && <p className="text-center text-xs opacity-30 py-4">Никого не найдено</p>}
+                              {globalSearchResults.length === 0 && !searchQuery && <p className="text-center text-xs opacity-30 py-4">Введите имя для поиска...</p>}
                           </div>
                       )}
                   </div>
               )}
 
-              {/* --- CREATE GROUP MODAL --- */}
               {activeModal === 'create_group' && (
                   <div className="space-y-6">
                       <div className="flex flex-col items-center gap-4">
                            <div className="relative group cursor-pointer" onClick={() => groupAvatarInputRef.current?.click()}>
                                 <div className="w-24 h-24 rounded-[1.5rem] bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden">
-                                     {newGroupAvatarPreview ? (
-                                         <img src={newGroupAvatarPreview} className="w-full h-full object-cover" />
-                                     ) : (
-                                         <Camera size={32} className="text-white/20" />
-                                     )}
+                                     {newGroupAvatarPreview ? <img src={newGroupAvatarPreview} className="w-full h-full object-cover" /> : <Camera size={32} className="text-white/20" />}
                                 </div>
                                 <div className="absolute -bottom-2 -right-2 bg-vellor-red p-2 rounded-full text-white shadow-lg"><Plus size={16}/></div>
-                                <input type="file" ref={groupAvatarInputRef} onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if(file) {
-                                        setNewGroupAvatar(file);
-                                        setNewGroupAvatarPreview(URL.createObjectURL(file));
-                                    }
-                                }} accept="image/*" className="hidden" />
+                                <input type="file" ref={groupAvatarInputRef} onChange={(e) => { const file = e.target.files?.[0]; if(file) { setNewGroupAvatar(file); setNewGroupAvatarPreview(URL.createObjectURL(file)); } }} accept="image/*" className="hidden" />
                            </div>
-                           <input 
-                               value={newGroupName}
-                               onChange={(e) => setNewGroupName(e.target.value)}
-                               placeholder="Название группы"
-                               className="bg-transparent border-b border-white/20 text-center py-2 text-lg font-bold outline-none focus:border-vellor-red w-full"
-                           />
+                           <input value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} placeholder="Название группы" className="bg-transparent border-b border-white/20 text-center py-2 text-lg font-bold outline-none focus:border-vellor-red w-full" />
                       </div>
-
                       <div className="relative group">
                         <Search className="absolute left-3 top-3 text-white/30" size={18} />
-                        <input 
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Добавить участников..." 
-                            className="w-full bg-white/5 border border-white/5 rounded-2xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all"
-                        />
+                        <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Добавить участников..." className="w-full bg-white/5 border border-white/5 rounded-2xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all" />
                       </div>
-                      
-                      {/* Selected Users */}
                       {selectedUsersForGroup.length > 0 && (
                           <div className="flex gap-2 overflow-x-auto pb-2 border-b border-white/5">
                               {selectedUsersForGroup.map(u => (
@@ -722,37 +692,16 @@ export const ChatList: React.FC<ChatListProps> = ({
                               ))}
                           </div>
                       )}
-
                       <div className="space-y-2 h-64 overflow-y-auto custom-scrollbar">
-                           <h4 className="text-[9px] font-bold uppercase tracking-widest opacity-40 sticky top-0 bg-[#0a0a0a] py-2 z-10">
-                                {searchQuery ? 'Результаты поиска' : 'Ваши контакты'}
-                           </h4>
-                           
-                           {/* Show Global Search Results if query exists, otherwise show Recent Contacts */}
-                           {(searchQuery ? globalSearchResults : recentContacts)
-                             .filter(u => !selectedUsersForGroup.some(s => s.id === u.id))
-                             .map(user => (
+                           <h4 className="text-[9px] font-bold uppercase tracking-widest opacity-40 sticky top-0 bg-[#0a0a0a] py-2 z-10">{searchQuery ? 'Результаты поиска' : 'Ваши контакты'}</h4>
+                           {(searchQuery ? globalSearchResults : recentContacts).filter(u => !selectedUsersForGroup.some(s => s.id === u.id)).map(user => (
                                <button key={user.id} onClick={() => setSelectedUsersForGroup(prev => [...prev, user])} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left">
-                                   <div className="w-9 h-9 rounded-full bg-gray-800 overflow-hidden shrink-0">
-                                       <img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" />
-                                   </div>
-                                   <div className="flex-1 min-w-0">
-                                       <p className="text-sm font-bold truncate">{user.name}</p>
-                                       <p className="text-[10px] opacity-40 truncate">@{user.username || 'user'}</p>
-                                   </div>
+                                   <div className="w-9 h-9 rounded-full bg-gray-800 overflow-hidden shrink-0"><img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
+                                   <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name}</p><p className="text-[10px] opacity-40 truncate">@{user.username || 'user'}</p></div>
                                    <div className="w-5 h-5 rounded-full border border-white/20" />
                                </button>
                            ))}
-
-                           {searchQuery && globalSearchResults.length === 0 && (
-                               <div className="text-center text-xs opacity-30 py-4">Никого не найдено</div>
-                           )}
-                           
-                           {!searchQuery && recentContacts.length === 0 && (
-                               <div className="text-center text-xs opacity-30 py-4">Нет недавних контактов</div>
-                           )}
                       </div>
-
                       <button onClick={handleCreateGroup} disabled={isCreatingGroup} className="w-full py-4 bg-vellor-red text-white font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
                           {isCreatingGroup ? <Loader2 className="animate-spin" /> : 'Создать'}
                       </button>
@@ -774,25 +723,9 @@ export const ChatList: React.FC<ChatListProps> = ({
                     </div>
                   </div>
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Отображаемое имя</label>
-                        <input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-bold focus:border-vellor-red/50 outline-none transition-all" />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Юзернейм</label>
-                        <div className="flex items-center bg-white/5 border border-white/5 rounded-2xl px-4 transition-all focus-within:border-vellor-red/50">
-                            <span className="text-white/30 text-sm font-bold">@</span>
-                            <input 
-                                value={userProfile.username} 
-                                onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} 
-                                className="w-full bg-transparent border-none p-4 pl-1 text-sm font-bold outline-none text-white" 
-                            />
-                        </div>
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Bio</label>
-                        <textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm min-h-[100px] resize-none focus:border-vellor-red/50 outline-none transition-all" />
-                    </div>
+                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Отображаемое имя</label><input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-bold focus:border-vellor-red/50 outline-none transition-all" /></div>
+                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Юзернейм</label><div className="flex items-center bg-white/5 border border-white/5 rounded-2xl px-4 transition-all focus-within:border-vellor-red/50"><span className="text-white/30 text-sm font-bold">@</span><input value={userProfile.username} onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent border-none p-4 pl-1 text-sm font-bold outline-none text-white" /></div></div>
+                    <div className="space-y-2"><label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Bio</label><textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm min-h-[100px] resize-none focus:border-vellor-red/50 outline-none transition-all" /></div>
                   </div>
                 </div>
               )}
@@ -813,7 +746,56 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
                    </section>
 
-                   {/* Performance Mode - NEW */}
+                   {/* Notifications Section */}
+                   <section>
+                      <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Уведомления</h3>
+                      <div className="bg-white/5 border border-white/5 rounded-[20px] overflow-hidden">
+                          <div className="p-4 flex items-center justify-between border-b border-white/5">
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white/5 rounded-xl"><Bell size={18} className="text-white/70"/></div>
+                                  <div className="flex flex-col"><span className="text-sm font-bold">Пуш-уведомления</span><span className="text-[10px] opacity-40">Браузерные</span></div>
+                              </div>
+                              <button onClick={() => onUpdateSettings({...settings, notifications: !settings.notifications})} className={`w-11 h-6 rounded-full relative transition-colors ${settings.notifications ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${settings.notifications ? 'left-6' : 'left-1'}`} />
+                              </button>
+                          </div>
+                          <div className="p-4 flex items-center justify-between border-b border-white/5">
+                              <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-white/5 rounded-xl"><Volume2 size={18} className="text-white/70"/></div>
+                                  <div className="flex flex-col"><span className="text-sm font-bold">Звуки</span><span className="text-[10px] opacity-40">В приложении</span></div>
+                              </div>
+                              <button onClick={() => onUpdateSettings({...settings, sound: !settings.sound})} className={`w-11 h-6 rounded-full relative transition-colors ${settings.sound ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${settings.sound ? 'left-6' : 'left-1'}`} />
+                              </button>
+                          </div>
+                          
+                          {/* Sound Selection */}
+                          {settings.sound && (
+                              <div className="p-4 bg-black/20">
+                                  <p className="text-[10px] font-bold uppercase tracking-wider mb-3 opacity-60">Мелодия уведомления</p>
+                                  <div className="grid grid-cols-2 gap-2">
+                                      {NOTIFICATION_SOUNDS.map(sound => (
+                                          <div key={sound.id} onClick={() => onUpdateSettings({ ...settings, notificationSound: sound.id })} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${settings.notificationSound === sound.id ? 'bg-vellor-red/20 border-vellor-red/50' : 'bg-white/5 border-white/5 hover:border-white/20'}`}>
+                                              <span className="text-xs font-bold truncate pr-2">{sound.name}</span>
+                                              <button 
+                                                  onClick={(e) => { e.stopPropagation(); playPreviewSound(sound.url, sound.id); }}
+                                                  className={`p-1.5 rounded-full ${playingSoundId === sound.id ? 'bg-vellor-red text-white' : 'bg-white/10 text-white/50 hover:text-white'}`}
+                                              >
+                                                  {playingSoundId === sound.id ? <Pause size={10} fill="currentColor" /> : <Play size={10} fill="currentColor" />}
+                                              </button>
+                                          </div>
+                                      ))}
+                                  </div>
+                              </div>
+                          )}
+
+                          <div className="grid grid-cols-1 gap-px bg-white/5">
+                             <button onClick={testNotification} className="p-3 bg-[#0a0a0a] hover:bg-white/5 transition-colors text-[10px] font-bold uppercase tracking-wider text-center text-white/50 hover:text-white">Тест пуш-уведомления</button>
+                          </div>
+                      </div>
+                   </section>
+
+                   {/* Other Settings (Performance, Appearance...) */}
                    <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Производительность</h3>
                       <div className="bg-white/5 border border-white/5 rounded-[20px] overflow-hidden">
@@ -829,32 +811,19 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
                    </section>
 
-                   {/* Appearance Section */}
                    <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Тема оформления</h3>
                       <div className="grid grid-cols-2 gap-3">
                           {THEME_DATA.map(t => {
                               const Icon = t.icon;
                               return (
-                                <button 
-                                    key={t.id} 
-                                    onClick={() => onSetTheme(t.id)} 
-                                    className={`relative h-28 rounded-3xl border overflow-hidden transition-all duration-300 group ${currentThemeId === t.id ? 'border-white/60 scale-[1.02] shadow-2xl' : 'border-white/5 hover:border-white/20 hover:scale-[1.01]'}`}
-                                >
-                                    {/* Animated Background Preview */}
+                                <button key={t.id} onClick={() => onSetTheme(t.id)} className={`relative h-28 rounded-3xl border overflow-hidden transition-all duration-300 group ${currentThemeId === t.id ? 'border-white/60 scale-[1.02] shadow-2xl' : 'border-white/5 hover:border-white/20 hover:scale-[1.01]'}`}>
                                     <div className="absolute inset-0 transition-all duration-700" style={{ background: t.bg }} />
-                                    
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" />
-                                    
-                                    <div className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Icon size={14} className="text-white" />
-                                    </div>
-
+                                    <div className="absolute top-3 right-3 p-1.5 rounded-full bg-white/10 backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity"><Icon size={14} className="text-white" /></div>
                                     <div className="absolute bottom-4 left-4 flex flex-col items-start gap-1">
                                         <span className={`text-[10px] font-black tracking-[0.2em] uppercase ${currentThemeId === t.id ? t.accent : 'text-white/70'}`}>{t.name}</span>
-                                        {currentThemeId === t.id && (
-                                            <MDiv layoutId="theme-active" className="h-0.5 w-6 bg-current rounded-full" />
-                                        )}
+                                        {currentThemeId === t.id && <MDiv layoutId="theme-active" className="h-0.5 w-6 bg-current rounded-full" />}
                                     </div>
                                 </button>
                               );
@@ -862,7 +831,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
                    </section>
 
-                   {/* Visual Effects Section */}
                    <section>
                       <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Визуальные эффекты</h3>
                       <div className="bg-white/5 border border-white/5 rounded-[20px] overflow-hidden">
@@ -878,36 +846,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                       </div>
                    </section>
 
-                   {/* Notifications Section */}
-                   <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Уведомления</h3>
-                      <div className="bg-white/5 border border-white/5 rounded-[20px] overflow-hidden">
-                          <div className="p-4 flex items-center justify-between border-b border-white/5">
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white/5 rounded-xl"><Bell size={18} className="text-white/70"/></div>
-                                  <div className="flex flex-col"><span className="text-sm font-bold">Пуш-уведомления</span><span className="text-[10px] opacity-40">Браузерные</span></div>
-                              </div>
-                              <button onClick={() => onUpdateSettings({...settings, notifications: !settings.notifications})} className={`w-11 h-6 rounded-full relative transition-colors ${settings.notifications ? 'bg-vellor-red' : 'bg-white/10'}`}>
-                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${settings.notifications ? 'left-6' : 'left-1'}`} />
-                              </button>
-                          </div>
-                          <div className="p-4 flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-white/5 rounded-xl"><Volume2 size={18} className="text-white/70"/></div>
-                                  <div className="flex flex-col"><span className="text-sm font-bold">Звуки</span><span className="text-[10px] opacity-40">В приложении</span></div>
-                              </div>
-                              <button onClick={() => onUpdateSettings({...settings, sound: !settings.sound})} className={`w-11 h-6 rounded-full relative transition-colors ${settings.sound ? 'bg-vellor-red' : 'bg-white/10'}`}>
-                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow-md transition-all ${settings.sound ? 'left-6' : 'left-1'}`} />
-                              </button>
-                          </div>
-                          <div className="grid grid-cols-2 gap-px bg-white/5">
-                             <button onClick={testSound} className="p-3 bg-[#0a0a0a] hover:bg-white/5 transition-colors text-[10px] font-bold uppercase tracking-wider text-center text-white/50 hover:text-white">Тест звука</button>
-                             <button onClick={testNotification} className="p-3 bg-[#0a0a0a] hover:bg-white/5 transition-colors text-[10px] font-bold uppercase tracking-wider text-center text-white/50 hover:text-white">Тест пуша</button>
-                          </div>
-                      </div>
-                   </section>
-
-                   {/* Privacy Link */}
                    <button onClick={() => setActiveModal('privacy')} className="w-full p-5 bg-gradient-to-r from-white/5 to-transparent border border-white/5 rounded-[20px] flex items-center justify-between group hover:border-white/10 transition-all">
                        <div className="flex items-center gap-4">
                            <div className="p-2 bg-vellor-red/10 rounded-xl text-vellor-red group-hover:scale-110 transition-transform"><Shield size={20}/></div>
@@ -915,11 +853,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                        </div>
                        <ChevronRight size={18} className="opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all"/>
                    </button>
-
-                   {/* Hidden Admin Trigger */}
-                   <div className="pt-8 text-center" onClick={handleAdminTrigger}>
-                      <p className="text-[9px] font-black uppercase text-white/10 tracking-[0.5em] select-none cursor-default">Vellor Messenger v1.0</p>
-                   </div>
+                   <div className="pt-8 text-center" onClick={handleAdminTrigger}><p className="text-[9px] font-black uppercase text-white/10 tracking-[0.5em] select-none cursor-default">Vellor Messenger v1.0</p></div>
                 </div>
               )}
 
@@ -927,14 +861,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                 <div className="space-y-3 pb-10">
                   {privacyOptions.map((item) => (
                     <button key={item.key} onClick={() => { setCurrentPrivacyKey(item.key); setCurrentPrivacyLabel(item.label); setActiveModal('privacy_item'); }} className="w-full p-4 flex items-center justify-between bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 rounded-2xl transition-all group">
-                       <div className="flex items-center gap-4">
-                          <div className="p-2 bg-black/40 rounded-xl text-white/50 group-hover:text-white transition-colors"><item.icon size={18} /></div>
-                          <span className="text-sm font-bold">{item.label}</span>
-                       </div>
-                       <div className="flex items-center gap-3">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-vellor-red/80">{getPrivacyStatus(userProfile[item.key] as PrivacyValue)}</span>
-                          <ChevronRight size={16} className="opacity-20" />
-                       </div>
+                       <div className="flex items-center gap-4"><div className="p-2 bg-black/40 rounded-xl text-white/50 group-hover:text-white transition-colors"><item.icon size={18} /></div><span className="text-sm font-bold">{item.label}</span></div>
+                       <div className="flex items-center gap-3"><span className="text-[10px] font-bold uppercase tracking-wider text-vellor-red/80">{getPrivacyStatus(userProfile[item.key] as PrivacyValue)}</span><ChevronRight size={16} className="opacity-20" /></div>
                     </button>
                   ))}
                 </div>
@@ -942,9 +870,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
               {activeModal === 'privacy_item' && (
                 <div className="space-y-4">
-                   <div className="p-5 bg-vellor-red/5 border border-vellor-red/10 rounded-2xl mb-6">
-                      <p className="text-xs text-white/70 leading-relaxed text-center">Вы настраиваете видимость для: <br/><strong className="text-white text-sm uppercase tracking-wider">{currentPrivacyLabel}</strong></p>
-                   </div>
+                   <div className="p-5 bg-vellor-red/5 border border-vellor-red/10 rounded-2xl mb-6"><p className="text-xs text-white/70 leading-relaxed text-center">Вы настраиваете видимость для: <br/><strong className="text-white text-sm uppercase tracking-wider">{currentPrivacyLabel}</strong></p></div>
                    {(['everybody', 'contacts', 'nobody'] as PrivacyValue[]).map((val) => (
                       <button key={val} onClick={() => { onUpdateProfile({ ...userProfile, [currentPrivacyKey!] : val }); setActiveModal('privacy'); }} className={`w-full p-5 rounded-2xl border flex items-center justify-between transition-all group ${userProfile[currentPrivacyKey!] === val ? 'border-vellor-red bg-vellor-red/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
                          <div className="flex items-center gap-3">
@@ -960,19 +886,9 @@ export const ChatList: React.FC<ChatListProps> = ({
               )}
             </div>
             
-            {/* Footer Action */}
             <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                {activeModal === 'profile' && (
-                 <button 
-                     onClick={async () => {
-                         setIsSaving(true);
-                         await onSaveProfile(userProfile);
-                         setIsSaving(false);
-                         setActiveModal(null);
-                     }}
-                     disabled={isSaving}
-                     className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
-                 >
+                 <button onClick={async () => { setIsSaving(true); await onSaveProfile(userProfile); setIsSaving(false); setActiveModal(null); }} disabled={isSaving} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
                     {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить'}
                  </button>
                )}

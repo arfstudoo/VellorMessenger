@@ -3,8 +3,11 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-content" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>VellorMessenger</title>
+    <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡️</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -33,20 +36,34 @@
         --text: #ffffff;
         --border: rgba(255, 255, 255, 0.08);
       }
-      html, body {
+      html {
+        background-color: var(--bg);
+        width: 100%;
+        height: 100dvh; /* Dynamic viewport height for mobile browsers */
+        overflow: hidden;
+      }
+      body {
         margin: 0;
         padding: 0;
         background-color: var(--bg);
         color: var(--text);
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        overflow: hidden; /* Запрет скролла body */
+        overflow: hidden;
         width: 100%;
         height: 100%;
-        position: fixed; /* Жесткая фиксация */
+        position: fixed;
         top: 0;
         left: 0;
-        overscroll-behavior: none; /* Отключение эффекта "резинки" на Mac/iOS */
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
       }
+      
+      /* Support for iPhone Notch/Home Indicator */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
       ::-webkit-scrollbar { width: 5px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }

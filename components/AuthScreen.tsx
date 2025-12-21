@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf, AlertCircle, Ghost, RefreshCw } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf, AlertCircle, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -199,23 +199,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const prevStep = () => {
     setDirection(-1);
     setStep(prev => prev - 1);
-  };
-
-  const handleGuestLogin = () => {
-      setLoading(true);
-      setTimeout(() => {
-          onComplete({
-              id: 'guest-' + Date.now(),
-              name: 'Гость',
-              username: 'guest',
-              avatar: '',
-              phone: '',
-              email: '',
-              bio: 'Я просто смотрю.',
-              status: 'online'
-          });
-          setLoading(false);
-      }, 1000);
   };
 
   const handleLogin = async () => {
@@ -436,10 +419,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                         <button onClick={() => { setEmailSent(false); setMode('login'); }} className="text-white/40 hover:text-white text-xs underline transition-colors">
                             Вернуться ко входу
                         </button>
-                        
-                        <button onClick={handleGuestLogin} className="w-full py-3 text-white/30 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 border-t border-white/10 pt-4">
-                            <Ghost size={14}/> Войти как гость пока жду
-                        </button>
                     </MDiv>
                 ) : (
                     <>
@@ -486,10 +465,6 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
                             <button onClick={handleFirstStepNext} disabled={loading} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 mt-4 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 ${theme.buttonGradient}`}>
                                 {loading ? <Loader2 className="animate-spin" /> : <>Войти <LogIn size={16}/></>}
-                            </button>
-                            
-                            <button onClick={handleGuestLogin} className="w-full py-3 text-white/30 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
-                                <Ghost size={14}/> Войти как гость
                             </button>
                         </MDiv>
                     )}

@@ -1,6 +1,8 @@
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, User, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Hash, Smartphone, Pin, Edit2, CornerUpLeft, Clock, Calendar, Users, Music, Crown, LogOut, Search, Plus, Check } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, User, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Hash, Smartphone, Pin, Edit2, CornerUpLeft, Clock, Calendar, Users, Music, Crown, LogOut, Search, Plus, Check, Loader2 } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus, Reaction } from '../types';
 import { supabase } from '../supabaseClient';
 
@@ -135,6 +137,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [newMemberSearch, setNewMemberSearch] = useState("");
   const [showAddMember, setShowAddMember] = useState(false);
   
+  // Pending File Preview State
+  const [pendingFile, setPendingFile] = useState<{file: File, url: string, type: MessageType} | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
 
@@ -148,12 +154,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-            onBack();
+            if (pendingFile) {
+                setPendingFile(null);
+            } else {
+                onBack();
+            }
         }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onBack]);
+  }, [onBack, pendingFile]);
 
   const scrollToBottom = (smooth = false) => {
     if (messagesContainerRef.current) {
@@ -275,16 +285,66 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }, 2000);
   };
 
-  const handleSend = () => { 
-    if (!inputText.trim()) return; 
+  // --- PASTE HANDLER ---
+  const handlePaste = (e: React.ClipboardEvent) => {
+      const items = e.clipboardData.items;
+      for (const item of items) {
+          if (item.type.indexOf('image') === 0) {
+              e.preventDefault();
+              const file = item.getAsFile();
+              if (file) {
+                  setPendingFile({
+                      file,
+                      url: URL.createObjectURL(file),
+                      type: 'image'
+                  });
+              }
+              return; // Handle only one image at a time for simplicity
+          }
+      }
+  };
+
+  const handleSend = async () => { 
+    if (!inputText.trim() && !pendingFile) return; 
     
+    if (isUploading) return;
+
     if (editingMessageId) {
         onEditMessage(editingMessageId, inputText);
         setEditingMessageId(null);
+        setInputText('');
     } else {
-        onSendMessage(chat.id, inputText, 'text'); 
+        // If there's a pending file, upload it first
+        if (pendingFile) {
+            setIsUploading(true);
+            const fileName = `${myId}/${pendingFile.type}_${Date.now()}_${pendingFile.file.name}`;
+            const { data, error } = await supabase.storage.from('messages').upload(fileName, pendingFile.file);
+            
+            if (!error && data) {
+                const { data: publicUrl } = supabase.storage.from('messages').getPublicUrl(fileName);
+                const size = (pendingFile.file.size / 1024 / 1024).toFixed(2) + ' MB';
+                // Send with caption if text exists, otherwise just media
+                // Currently send function separates them, so we might need two calls or updated logic. 
+                // For now, let's send image, then text if exists.
+                onSendMessage(chat.id, '', pendingFile.type, publicUrl.publicUrl, undefined, pendingFile.file.name, size);
+                
+                if (inputText.trim()) {
+                    // Small delay to ensure order
+                    setTimeout(() => onSendMessage(chat.id, inputText, 'text'), 100);
+                }
+            } else {
+                console.error("Upload error during send", error);
+            }
+            setIsUploading(false);
+            setPendingFile(null);
+            setInputText('');
+        } else {
+            // Just text
+            onSendMessage(chat.id, inputText, 'text');
+            setInputText(''); 
+        }
     }
-    setInputText(''); 
+    
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     onSendTypingSignal(false); 
     setShowEmojis(false); 
@@ -303,16 +363,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const file = e.target.files?.[0];
     if (!file || !uploadingType) return;
     
-    const fileName = `${myId}/${uploadingType}_${Date.now()}_${file.name}`;
-    const { data, error } = await supabase.storage.from('messages').upload(fileName, file);
-    
-    if (!error && data) {
-        const { data: publicUrl } = supabase.storage.from('messages').getPublicUrl(fileName);
-        const size = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-        onSendMessage(chat.id, '', uploadingType, publicUrl.publicUrl, undefined, file.name, size);
-    } else {
-        console.error("Upload error:", error);
-    }
+    // Instead of immediate upload, set pending
+    setPendingFile({
+        file,
+        url: URL.createObjectURL(file),
+        type: uploadingType
+    });
     
     setShowAttachments(false);
     setUploadingType(null);
@@ -673,8 +729,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </div>
 
                         <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
-                            
-                            {/* Hero Section */}
+                            {/* ... (Existing User Info Content) ... */}
                             <div className="flex flex-col items-center">
                                 <div className="w-40 h-40 rounded-[2.5rem] p-1 border border-white/10 bg-black/50 relative mb-5 shadow-2xl">
                                     <div className="w-full h-full rounded-[2.2rem] overflow-hidden relative">
@@ -705,10 +760,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                      </button>
                                 </div>
                             </div>
-
+                            
                             <div className="h-px bg-white/5 w-full" />
-
-                            {/* Group Members Section */}
+                            
                             {chat.user.isGroup ? (
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between">
@@ -799,6 +853,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* Input Area */}
         <div className="p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative">
+             {/* EDITING MODE OVERLAY */}
              {editingMessageId && (
                  <div className="absolute -top-12 left-0 w-full bg-black/80 backdrop-blur-md border-t border-white/10 p-2 px-6 flex items-center justify-between z-10">
                      <div className="flex items-center gap-3">
@@ -807,6 +862,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                      </div>
                      <button onClick={() => { setEditingMessageId(null); setInputText(''); }} className="p-1 hover:text-white text-gray-400"><X size={16}/></button>
                  </div>
+             )}
+
+             {/* PENDING FILE PREVIEW OVERLAY */}
+             {pendingFile && (
+                 <motion.div 
+                    initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+                    className="absolute -top-32 left-4 w-48 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20"
+                 >
+                     <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 mb-2 border border-white/5 group">
+                         {pendingFile.type === 'image' ? (
+                             <img src={pendingFile.url} className="w-full h-full object-cover" />
+                         ) : (
+                             <div className="w-full h-full flex flex-col items-center justify-center text-white/50">
+                                 <FileText size={32} />
+                                 <span className="text-[9px] uppercase font-black mt-2">File</span>
+                             </div>
+                         )}
+                         <button 
+                            onClick={() => setPendingFile(null)}
+                            className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-red-500 transition-colors"
+                         >
+                             <X size={12} />
+                         </button>
+                     </div>
+                     <p className="text-[10px] text-white/50 truncate px-1 font-mono">{pendingFile.file.name}</p>
+                 </motion.div>
              )}
 
              <div className="flex items-end gap-3 max-w-5xl mx-auto relative">
@@ -826,7 +907,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                     <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl focus-within:border-vellor-red/40 transition-all flex items-end px-2 relative">
                         <button onClick={() => setShowEmojis(!showEmojis)} className={`p-3.5 transition-colors ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={22}/></button>
-                        <textarea value={inputText} onChange={handleInputChange} onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())} placeholder="Сообщение..." className="w-full bg-transparent text-white py-4 px-1 max-h-40 min-h-[54px] resize-none outline-none custom-scrollbar text-sm" />
+                        <textarea 
+                            value={inputText} 
+                            onChange={handleInputChange} 
+                            onPaste={handlePaste}
+                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())} 
+                            placeholder={pendingFile ? "Добавить подпись..." : "Сообщение..."}
+                            className="w-full bg-transparent text-white py-4 px-1 max-h-40 min-h-[54px] resize-none outline-none custom-scrollbar text-sm" 
+                        />
                         
                         <AnimatePresence>
                            {showEmojis && (
@@ -839,9 +927,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </AnimatePresence>
                     </div>
 
-                    {inputText.trim() ? (
-                        <button onClick={handleSend} className="p-4 bg-vellor-red rounded-2xl text-white shadow-[0_10px_20px_rgba(255,0,51,0.3)] active:scale-90 transition-transform">
-                            {editingMessageId ? <Check size={22}/> : <Send size={22}/>}
+                    {inputText.trim() || pendingFile ? (
+                        <button onClick={handleSend} disabled={isUploading} className="p-4 bg-vellor-red rounded-2xl text-white shadow-[0_10px_20px_rgba(255,0,51,0.3)] active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100">
+                            {isUploading ? <Loader2 className="animate-spin" size={22}/> : (editingMessageId ? <Check size={22}/> : <Send size={22}/>)}
                         </button>
                     ) : (
                         <button onClick={startRecording} className="p-4 rounded-2xl bg-white/5 text-gray-400 hover:text-vellor-red hover:bg-white/10 transition-all"><Mic size={22}/></button>
