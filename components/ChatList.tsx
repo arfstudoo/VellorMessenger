@@ -482,7 +482,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 <Settings size={16} className="text-vellor-red"/> Настройки
               </button>
               <div className="h-px bg-white/5 my-2" />
-              <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="flex items-center gap-4 w-full p-4 text-red-500/80 hover:text-red-500 rounded-2xl text-xs font-black tracking-widest uppercase transition-all"><LogOut size={16}/> Выйти</button>
+              <button onClick={() => (supabase.auth as any).signOut().then(() => window.location.reload())} className="flex items-center gap-4 w-full p-4 text-red-500/80 hover:text-red-500 rounded-2xl text-xs font-black tracking-widest uppercase transition-all"><LogOut size={16}/> Выйти</button>
             </MDiv>
           </>
         )}

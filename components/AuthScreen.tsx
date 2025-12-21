@@ -204,7 +204,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   const handleLogin = async () => {
       setLoading(true);
       setErrors({}); // Clear previous errors
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await (supabase.auth as any).signInWithPassword({
           email: formData.email,
           password: formData.password
       });
@@ -254,7 +254,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
       setErrors({}); // Clear previous errors
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
       
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { data: authData, error: authError } = await (supabase.auth as any).signUp({
           email: formData.email,
           password: formData.password,
           options: {

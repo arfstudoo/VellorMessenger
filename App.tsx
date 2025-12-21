@@ -10,7 +10,7 @@ import { Toast, ToastType } from './components/Toast';
 import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
 import { supabase } from './supabaseClient';
 import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck } from 'lucide-react';
-import { RealtimeChannel } from '@supabase/supabase-js';
+// import { RealtimeChannel } from '@supabase/supabase-js';
 import { NOTIFICATION_SOUNDS } from './constants';
 
 const MDiv = motion.div as any;
@@ -234,7 +234,7 @@ const App: React.FC = () => {
   const chatsRef = useRef<Chat[]>([]);
   useEffect(() => { chatsRef.current = chats; }, [chats]);
   const userProfileRef = useRef<UserProfile | null>(null);
-  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
+  const presenceChannelRef = useRef<any | null>(null);
 
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [tempChatUser, setTempChatUser] = useState<User | null>(null);
@@ -362,7 +362,7 @@ const App: React.FC = () => {
 
   const handleSplashComplete = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await (supabase.auth as any).getSession();
       if (session) {
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (profile) {
@@ -642,33 +642,33 @@ const App: React.FC = () => {
       // 4. Handle PROFILE updates (Admin actions / Changes)
       else if (payload.eventType === 'UPDATE' && payload.table === 'profiles') {
           const updatedProfile = payload.new;
-          const oldProfile = payload.old; // Only available if REPLICA IDENTITY is set to FULL, otherwise partial. Supabase standard setup sends both usually for watched cols.
+          // const oldProfile = payload.old; // DO NOT USE payload.old due to partial replica identity causing spam
           
           if (updatedProfile.id === userProfileRef.current?.id) {
               // --- NOTIFICATIONS FOR SELF ---
-              
+              const currentProfile = userProfileRef.current;
+              if (!currentProfile) return;
+
               // 1. Verification Changed
-              if (!oldProfile.is_verified && updatedProfile.is_verified) {
+              if (!currentProfile.isVerified && updatedProfile.is_verified) {
                   showToast("Ваш аккаунт официально подтвержден администратором!", "success", "https://em-content.zobj.net/source/apple/391/check-mark-button_2705.png");
                   playNotificationSound();
-              } else if (oldProfile.is_verified && !updatedProfile.is_verified) {
+              } else if (currentProfile.isVerified && !updatedProfile.is_verified) {
                   showToast("Статус верификации снят.", "warning");
               }
 
               // 2. Admin Status Changed
-              if (!oldProfile.is_admin && updatedProfile.is_admin) {
+              if (!currentProfile.isAdmin && updatedProfile.is_admin) {
                   showToast("Вам выданы права Администратора. Доступ к терминалу открыт.", "success");
                   playNotificationSound();
-              } else if (oldProfile.is_admin && !updatedProfile.is_admin) {
+              } else if (currentProfile.isAdmin && !updatedProfile.is_admin) {
                   showToast("Права Администратора отозваны.", "error");
               }
 
-              // 3. Username Changed by Admin
-              // We compare with local ref to ensure we don't notify on self-updates or unrelated updates (like status) 
-              // where oldProfile.username might be undefined due to Supabase REPLICA IDENTITY settings.
-              if (userProfileRef.current?.username && 
+              // 3. Username Changed by Admin (Prevent spam on self-update by comparing with local state)
+              if (currentProfile.username && 
                   updatedProfile.username && 
-                  userProfileRef.current.username !== updatedProfile.username) {
+                  currentProfile.username !== updatedProfile.username) {
                   showToast(`Ваш юзернейм изменен на @${updatedProfile.username}`, "info");
               }
 
