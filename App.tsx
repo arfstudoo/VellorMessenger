@@ -9,9 +9,11 @@ import { CallModal } from './components/CallModal';
 import { Toast, ToastType } from './components/Toast';
 import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
 import { supabase } from './supabaseClient';
-import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database } from 'lucide-react';
+import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck } from 'lucide-react';
 import { RealtimeChannel } from '@supabase/supabase-js';
 import { NOTIFICATION_SOUND_URL } from './constants';
+
+const MDiv = motion.div as any;
 
 const THEMES_CONFIG = {
   crimson: {
@@ -88,7 +90,7 @@ const THEMES_CONFIG = {
 
 const CALL_RINGTONE = "https://cdn.freesound.org/previews/344/344153_5723683-lq.mp3"; 
 
-const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (Fixes Warnings & Adds Reactions)
+const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (Fixes Warnings & Adds Admin Features)
 -- Run in Supabase SQL Editor
 
 -- 1. CLEANUP: Drop Function first
@@ -100,12 +102,22 @@ DROP POLICY IF EXISTS "Enable all for members" ON group_members;
 DROP POLICY IF EXISTS "Enable all for messages" ON messages;
 DROP POLICY IF EXISTS "Enable read access for all users" ON groups;
 DROP POLICY IF EXISTS "Enable insert for authenticated users only" ON groups;
+DROP POLICY IF EXISTS "Enable all for profiles" ON profiles;
+DROP POLICY IF EXISTS "Public read profiles" ON profiles;
+DROP POLICY IF EXISTS "Owner or Admin update profiles" ON profiles;
+DROP POLICY IF EXISTS "Insert profiles" ON profiles;
 
--- 3. SCHEMA: Ensure columns exist (Idempotent)
+-- 3. SCHEMA: Ensure columns exist
 DO $$ 
 BEGIN 
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'group_members' AND column_name = 'is_admin') THEN
     ALTER TABLE group_members ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'is_admin') THEN
+    ALTER TABLE profiles ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'is_verified') THEN
+    ALTER TABLE profiles ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
   END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'group_id') THEN
     ALTER TABLE messages ADD COLUMN group_id UUID REFERENCES groups(id) ON DELETE CASCADE;
@@ -120,14 +132,27 @@ END $$;
 
 ALTER TABLE messages ALTER COLUMN receiver_id DROP NOT NULL;
 
--- 4. RLS: Re-enable and set SINGLE consolidated policy per table
+-- 4. RLS: Re-enable and set policies
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Enable all for groups" ON groups FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for members" ON group_members FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Enable all for messages" ON messages FOR ALL USING (true) WITH CHECK (true);
+
+-- Allow anyone to read profiles, but only owner OR admin to update
+CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
+CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
+  auth.uid() = id OR 
+  (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
+) WITH CHECK (
+  auth.uid() = id OR 
+  (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
+);
+CREATE POLICY "Insert profiles" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
+
 
 -- 5. REALTIME: Safe addition
 DO $$
@@ -135,6 +160,7 @@ BEGIN
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE messages; EXCEPTION WHEN OTHERS THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE group_members; EXCEPTION WHEN OTHERS THEN NULL; END;
   BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE groups; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN ALTER PUBLICATION supabase_realtime ADD TABLE profiles; EXCEPTION WHEN OTHERS THEN NULL; END;
 END $$;
 
 -- 6. FUNCTION: Optimized logic with SECURITY DEFINER
@@ -222,7 +248,7 @@ const App: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState<Map<string, UserStatus>>(new Map());
 
   const [userProfile, setUserProfile] = useState<UserProfile>({ 
-    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online' 
+    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online', isAdmin: false, isVerified: false
   });
   
   useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
@@ -309,7 +335,8 @@ const App: React.FC = () => {
         if (profile) {
            setUserProfile({
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
-              phone: session.user.email || '', bio: profile.bio || '', status: 'online'
+              phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
+              isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -448,7 +475,7 @@ const App: React.FC = () => {
                 const s = settingsMap.get(pid);
                 chatsMap.set(pid, {
                     id: pid,
-                    user: { id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', username: p.username, isGroup: false },
+                    user: { id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', username: p.username, isGroup: false, isVerified: p.is_verified },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                     isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false
                 });
@@ -460,7 +487,6 @@ const App: React.FC = () => {
             const chat = chatsMap.get(chatId);
             if (chat) {
                 const isMe = msg.sender_id === userProfile.id;
-                // NOTE: msg.is_read comes from RPC for both groups (calculated) and private (column)
                 const m: Message = { 
                   id: msg.id, senderId: isMe ? 'me' : msg.sender_id, text: msg.content || '', 
                   type: msg.type as MessageType, timestamp: new Date(msg.created_at), isRead: msg.is_read,
@@ -501,7 +527,6 @@ const App: React.FC = () => {
           if (!isMe) {
               playNotificationSound();
               
-              // Find sender/group info for notification
               const chat = chatsRef.current.find(c => c.id === chatId);
               const senderName = chat?.user.isGroup 
                   ? `${chat.user.name} (Группа)` 
@@ -511,10 +536,7 @@ const App: React.FC = () => {
                                        newMsg.type === 'audio' ? 'Голосовое сообщение' : 
                                        newMsg.content;
 
-              // 1. In-App Toast
               showToast(`${senderName}: ${notificationText}`, "info", chat?.user.avatar);
-
-              // 2. Native Browser Notification (if active)
               sendBrowserNotification(senderName, notificationText, chat?.user.avatar);
           }
 
@@ -570,7 +592,7 @@ const App: React.FC = () => {
                           isPinned: payload.new.is_pinned,
                           isEdited: payload.new.is_edited,
                           text: payload.new.content || m.text,
-                          reactions: payload.new.reactions || m.reactions // Sync reactions
+                          reactions: payload.new.reactions || m.reactions
                       };
                   }
                   return m;
@@ -581,6 +603,56 @@ const App: React.FC = () => {
       // 3. Handle DELETE
       else if (payload.eventType === 'DELETE' && payload.table === 'messages') {
           setChats(prev => prev.map(c => ({ ...c, messages: c.messages.filter(m => m.id !== payload.old.id) })));
+      }
+      // 4. Handle PROFILE updates (Admin actions / Changes)
+      else if (payload.eventType === 'UPDATE' && payload.table === 'profiles') {
+          const updatedProfile = payload.new;
+          const oldProfile = payload.old; // Only available if REPLICA IDENTITY is set to FULL, otherwise partial. Supabase standard setup sends both usually for watched cols.
+          
+          if (updatedProfile.id === userProfileRef.current?.id) {
+              // --- NOTIFICATIONS FOR SELF ---
+              
+              // 1. Verification Changed
+              if (!oldProfile.is_verified && updatedProfile.is_verified) {
+                  showToast("Ваш аккаунт официально подтвержден администратором!", "success", "https://em-content.zobj.net/source/apple/391/check-mark-button_2705.png");
+                  playNotificationSound();
+              } else if (oldProfile.is_verified && !updatedProfile.is_verified) {
+                  showToast("Статус верификации снят.", "warning");
+              }
+
+              // 2. Admin Status Changed
+              if (!oldProfile.is_admin && updatedProfile.is_admin) {
+                  showToast("Вам выданы права Администратора. Доступ к терминалу открыт.", "success");
+                  playNotificationSound();
+              } else if (oldProfile.is_admin && !updatedProfile.is_admin) {
+                  showToast("Права Администратора отозваны.", "error");
+              }
+
+              // 3. Username Changed by Admin (assuming user didn't do it themselves via the app UI just now)
+              // We can't distinguish who did it easily without logs, but a toast is fine anyway.
+              if (oldProfile.username !== updatedProfile.username) {
+                  showToast(`Ваш юзернейм изменен на @${updatedProfile.username}`, "info");
+              }
+
+              // Update self state
+              setUserProfile(prev => ({
+                  ...prev,
+                  name: updatedProfile.full_name,
+                  username: updatedProfile.username,
+                  bio: updatedProfile.bio,
+                  avatar: updatedProfile.avatar_url,
+                  isAdmin: updatedProfile.is_admin,
+                  isVerified: updatedProfile.is_verified
+              }));
+          } else {
+             // Update chats list details if this user is in our list
+             setChats(prev => prev.map(c => {
+                 if (c.user.id === updatedProfile.id) {
+                     return { ...c, user: { ...c.user, name: updatedProfile.full_name, username: updatedProfile.username, avatar: updatedProfile.avatar_url, isVerified: updatedProfile.is_verified } };
+                 }
+                 return c;
+             }));
+          }
       }
   }, [fetchChats, settings.notifications, settings.sound]);
 
@@ -593,6 +665,9 @@ const App: React.FC = () => {
             fetchChats();
         }
     });
+    // Listen to profile updates for verification status/admin changes
+    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimePayload);
+
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats]);
@@ -685,7 +760,7 @@ const App: React.FC = () => {
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
       {/* Disable pulsing blob in lite mode to save GPU */}
-      {settings.pulsing && !settings.liteMode && <motion.div key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
+      {settings.pulsing && !settings.liteMode && <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
       
       {/* Static gradient for lite mode instead */}
       {settings.liteMode && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
@@ -703,7 +778,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {appState === 'app' && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full h-full flex overflow-hidden bg-transparent" style={{ color: 'var(--text)' }}>
+        <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full h-full flex overflow-hidden bg-transparent" style={{ color: 'var(--text)' }}>
             <div className={`${isMobile && activeChatId ? 'hidden' : 'w-full md:w-[380px] lg:w-[420px]'} h-full border-r border-[var(--border)] bg-black/30 backdrop-blur-3xl flex flex-col shrink-0`}>
               {isDatabaseError ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-6 overflow-y-auto custom-scrollbar">
@@ -730,7 +805,7 @@ const App: React.FC = () => {
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}
             </div>
-        </motion.div>
+        </MDiv>
       )}
     </div>
   );

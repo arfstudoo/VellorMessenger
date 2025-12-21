@@ -1,9 +1,15 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, User, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Hash, Smartphone, Pin, Edit2, CornerUpLeft, Clock, Calendar, Users, Music, Crown, LogOut, Search, Plus, Check } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus, Reaction } from '../types';
 import { supabase } from '../supabaseClient';
+
+const MDiv = motion.div as any;
+const MImg = motion.img as any;
+const MButton = motion.button as any;
+const MP = motion.p as any;
+const MSvg = motion.svg as any;
+const MPath = motion.path as any;
 
 interface ChatWindowProps {
   chat: Chat;
@@ -33,12 +39,12 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
   return (
     <div className="flex items-center justify-center w-4 h-4 relative ml-0.5">
        {/* First Check (Sent) */}
-       <motion.svg 
+       <MSvg 
          viewBox="0 0 24 24" 
          className="absolute inset-0 w-full h-full"
          initial="hidden" animate="visible"
        >
-         <motion.path 
+         <MPath 
            d="M20 6L9 17l-5-5" 
            fill="none" 
            stroke={isRead ? "#ff0033" : "rgba(255,255,255,0.7)"} 
@@ -50,15 +56,15 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
              visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3 } }
            }}
          />
-       </motion.svg>
+       </MSvg>
        
        {/* Second Check (Read) */}
-       <motion.svg 
+       <MSvg 
          viewBox="0 0 24 24" 
          className="absolute inset-0 w-full h-full left-[5px] -top-[1px]" // Slight offset for double check
          initial="hidden" animate={isRead ? "visible" : "hidden"}
        >
-         <motion.path 
+         <MPath 
            d="M20 6L9 17l-5-5" 
            fill="none" 
            stroke="#ff0033" 
@@ -70,7 +76,7 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
              visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3, delay: 0.1 } }
            }}
          />
-       </motion.svg>
+       </MSvg>
     </div>
   );
 };
@@ -453,7 +459,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     <h3 className="font-black text-white text-base tracking-tight">{chat.user.name}</h3>
                     <AnimatePresence mode="wait">
                         {isPartnerTyping ? (
-                          <motion.p key="typing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] font-black italic text-vellor-red uppercase tracking-widest">печатает...</motion.p>
+                          <MP key="typing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-[10px] font-black italic text-vellor-red uppercase tracking-widest">печатает...</MP>
                         ) : (
                           <p className="text-[9px] font-black uppercase tracking-widest opacity-40">
                              {getStatusText(displayStatus, !!chat.user.isGroup)}
@@ -472,7 +478,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Pinned Message Bar */}
         <AnimatePresence>
             {pinnedMessage && (
-                <motion.div 
+                <MDiv 
                     initial={{ height: 0, opacity: 0 }} 
                     animate={{ height: 'auto', opacity: 1 }} 
                     exit={{ height: 0, opacity: 0 }}
@@ -489,7 +495,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         </p>
                     </div>
                     <Pin size={14} className="text-vellor-red fill-vellor-red rotate-45" />
-                </motion.div>
+                </MDiv>
             )}
         </AnimatePresence>
 
@@ -515,7 +521,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 }, {} as Record<string, { count: number, hasReacted: boolean }>);
 
                 return (
-                    <motion.div 
+                    <MDiv 
                         key={msg.id} 
                         id={`msg-${msg.id}`}
                         initial={{ opacity: 0, y: 10 }} 
@@ -531,7 +537,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         )}
 
                         <div 
-                            onContextMenu={(e) => handleContextMenu(e, msg)}
+                            onContextMenu={(e: any) => handleContextMenu(e, msg)}
                             className={`max-w-[75%] p-2 rounded-2xl relative shadow-2xl border border-white/5 cursor-pointer group mb-4 ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-2 ring-vellor-red/50 shadow-[0_0_15px_rgba(255,0,51,0.2)]' : ''}`}
                         >
                             {/* Sender Name in Group (Only for first message in sequence) */}
@@ -544,7 +550,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             {msg.type === 'audio' && <AudioPlayer url={msg.mediaUrl || ''} duration={msg.duration} />}
                             
                             {msg.type === 'image' && (
-                                <motion.img 
+                                <MImg 
                                     layoutId={msg.id} 
                                     src={msg.mediaUrl} 
                                     className="max-w-full rounded-xl border border-white/10" 
@@ -581,13 +587,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             <div className="absolute -bottom-5 left-0 flex gap-1 z-10 px-1 pointer-events-auto">
                                 <AnimatePresence initial={false}>
                                     {Object.entries(reactionsGrouped).map(([emoji, data]: [string, { count: number; hasReacted: boolean }]) => (
-                                        <motion.button 
+                                        <MButton 
                                             key={emoji}
                                             initial={{ scale: 0, opacity: 0 }}
                                             animate={{ scale: 1, opacity: 1 }}
                                             exit={{ scale: 0, opacity: 0 }}
                                             transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                                            onClick={(e) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }}
+                                            onClick={(e: any) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }}
                                             className={`
                                                 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-lg backdrop-blur-md border transition-all
                                                 ${data.hasReacted 
@@ -598,12 +604,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                         >
                                             <span className="text-xs leading-none">{emoji}</span>
                                             {data.count > 1 && <span className="text-[9px] font-bold opacity-80">{data.count}</span>}
-                                        </motion.button>
+                                        </MButton>
                                     ))}
                                 </AnimatePresence>
                             </div>
                         </div>
-                    </motion.div>
+                    </MDiv>
                 );
             })}
         </div>
@@ -611,18 +617,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         {/* Message Context Menu */}
         <AnimatePresence>
             {contextMenu && (
-                <motion.div
+                <MDiv
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.9 }}
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     className="fixed z-[100] w-64 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-2 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e: any) => e.stopPropagation()}
                 >
                     {/* Reaction Bar */}
                     <div className="p-2 bg-white/5 rounded-xl mb-1 flex justify-between gap-1">
                         {QUICK_REACTIONS.map(emoji => (
-                             <motion.button 
+                             <MButton 
                                 key={emoji} 
                                 whileHover={{ scale: 1.2 }}
                                 whileTap={{ scale: 0.9 }}
@@ -630,7 +636,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 className="text-2xl p-1 transition-transform"
                              >
                                  {emoji}
-                             </motion.button>
+                             </MButton>
                         ))}
                     </div>
 
@@ -649,7 +655,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <Trash2 size={14} />
                         Удалить
                     </button>
-                </motion.div>
+                </MDiv>
             )}
         </AnimatePresence>
 
@@ -657,8 +663,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <AnimatePresence>
             {showUserInfo && (
                 <>
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUserInfo(false)} className="fixed inset-0 z-[40] bg-black/40 backdrop-blur-md" />
-                    <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
+                    <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowUserInfo(false)} className="fixed inset-0 z-[40] bg-black/40 backdrop-blur-md" />
+                    <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
                         
                         {/* Sidebar Header */}
                         <div className="h-20 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
@@ -726,7 +732,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                     <div className="space-y-2">
                                         <AnimatePresence>
                                             {groupMembers.map((member) => (
-                                                <motion.div 
+                                                <MDiv 
                                                     key={member.user.id} 
                                                     initial={{ opacity: 0, x: -10 }} 
                                                     animate={{ opacity: 1, x: 0 }}
@@ -745,7 +751,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                                     <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <button className="p-2 hover:text-white text-white/40"><MoreVertical size={16}/></button>
                                                     </div>
-                                                </motion.div>
+                                                </MDiv>
                                             ))}
                                         </AnimatePresence>
                                     </div>
@@ -786,7 +792,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </div>
                             )}
                         </div>
-                    </motion.div>
+                    </MDiv>
                 </>
             )}
         </AnimatePresence>
@@ -810,10 +816,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3.5 rounded-2xl transition-all ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={22}/></button>
                         <AnimatePresence>
                             {showAttachments && (
-                                <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-16 left-0 w-48 bg-black/95 border border-white/10 p-2 rounded-2xl shadow-2xl overflow-hidden z-[100]">
+                                <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-16 left-0 w-48 bg-black/95 border border-white/10 p-2 rounded-2xl shadow-2xl overflow-hidden z-[100]">
                                     <button onClick={() => triggerFileUpload('image')} className="flex items-center gap-3 w-full p-4 hover:bg-white/5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
                                     <button onClick={() => triggerFileUpload('file')} className="flex items-center gap-3 w-full p-4 hover:bg-white/5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors"><FileText size={16} className="text-vellor-red"/> Файл</button>
-                                </motion.div>
+                                </MDiv>
                             )}
                         </AnimatePresence>
                     </div>
@@ -824,11 +830,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         
                         <AnimatePresence>
                            {showEmojis && (
-                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-[60px] left-0 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 grid grid-cols-6 gap-2 w-64 shadow-2xl z-50">
+                             <MDiv initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="absolute bottom-[60px] left-0 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl p-3 grid grid-cols-6 gap-2 w-64 shadow-2xl z-50">
                                 {EMOJIS.map(emoji => (
                                   <button key={emoji} onClick={() => setInputText(prev => prev + emoji)} className="text-xl p-2 hover:bg-white/10 rounded-lg transition-colors">{emoji}</button>
                                 ))}
-                             </motion.div>
+                             </MDiv>
                            )}
                         </AnimatePresence>
                     </div>
@@ -842,10 +848,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     )}
                   </>
                 ) : (
-                  <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex items-center justify-between bg-vellor-red/10 border border-vellor-red/20 rounded-[2rem] p-2 pr-4 h-[54px]">
-                    <div className="flex items-center gap-4 pl-4"><motion.div animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-2.5 h-2.5 rounded-full bg-vellor-red" /><span className="text-sm font-black text-white font-mono">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span></div>
+                  <MDiv initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex items-center justify-between bg-vellor-red/10 border border-vellor-red/20 rounded-[2rem] p-2 pr-4 h-[54px]">
+                    <div className="flex items-center gap-4 pl-4"><MDiv animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-2.5 h-2.5 rounded-full bg-vellor-red" /><span className="text-sm font-black text-white font-mono">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span></div>
                     <div className="flex items-center gap-3"><button onClick={() => stopRecording(false)} className="p-2.5 text-white/40 hover:text-white transition-colors"><Trash2 size={20}/></button><button onClick={() => stopRecording(true)} className="p-2.5 bg-vellor-red rounded-full text-white"><StopCircle size={20}/></button></div>
-                  </motion.div>
+                  </MDiv>
                 )}
              </div>
         </div>

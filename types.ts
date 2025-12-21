@@ -12,6 +12,7 @@ export interface User {
   bio?: string;
   phone?: string;
   username?: string;
+  isVerified?: boolean; // New: Verified Badge
 }
 
 export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
@@ -25,6 +26,8 @@ export interface UserProfile {
   username: string;
   avatar: string;
   status: UserStatus;
+  isAdmin?: boolean;      // New: Admin Access
+  isVerified?: boolean;   // New: Verified Badge
   
   // Privacy Settings
   privacy_phone?: PrivacyValue;

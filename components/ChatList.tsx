@@ -1,12 +1,13 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 import { NOTIFICATION_SOUND_URL } from '../constants';
 import { NftGallery } from './NftGallery';
+
+const MDiv = motion.div as any;
 
 interface ChatListProps {
   chats: Chat[];
@@ -50,7 +51,7 @@ const StatusIndicator: React.FC<{ status: UserStatus; size?: string }> = ({ stat
           className={`${size} rounded-full border-2 border-black ${colors[status] || colors.offline} relative z-10 transition-colors duration-300`}
         />
         {status === 'online' && (
-            <motion.div 
+            <MDiv 
                 animate={{ scale: [1, 1.8], opacity: [0.6, 0] }}
                 transition={{ repeat: Infinity, duration: 1.5, ease: "easeOut" }}
                 className={`absolute inset-0 rounded-full bg-vellor-red -z-0`}
@@ -63,7 +64,7 @@ const StatusIndicator: React.FC<{ status: UserStatus; size?: string }> = ({ stat
 export const ChatList: React.FC<ChatListProps> = ({ 
   chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers
 }) => {
-  const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | null>(null);
+  const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | 'admin_login' | 'admin_panel' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,6 +86,13 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [newGroupAvatarPreview, setNewGroupAvatarPreview] = useState<string>("");
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
+  // Admin Features
+  const [adminTapCount, setAdminTapCount] = useState(0);
+  const [adminPin, setAdminPin] = useState("");
+  const [adminUserSearch, setAdminUserSearch] = useState("");
+  const [adminSelectedUser, setAdminSelectedUser] = useState<any | null>(null);
+  const [adminActionLoading, setAdminActionLoading] = useState(false);
+
   useEffect(() => {
     const handleClick = () => setContextMenu(null);
     window.addEventListener('click', handleClick);
@@ -93,8 +101,8 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   // Global Search Logic
   useEffect(() => {
-      if (activeModal !== 'new_chat' && activeModal !== 'create_group') return;
-      if (!searchQuery.trim()) {
+      if (activeModal !== 'new_chat' && activeModal !== 'create_group' && activeModal !== 'admin_panel') return;
+      if (!searchQuery.trim() && !adminUserSearch.trim()) {
           setGlobalSearchResults([]);
           setIsSearchingGlobal(false);
           return;
@@ -102,11 +110,12 @@ export const ChatList: React.FC<ChatListProps> = ({
       
       const searchUsers = async () => {
           setIsSearchingGlobal(true);
+          const term = activeModal === 'admin_panel' ? adminUserSearch : searchQuery;
           // Simple search in profiles
-          let query = supabase.from('profiles').select('*').neq('id', userProfile.id).limit(20);
+          let query = supabase.from('profiles').select('*').limit(20);
           
-          if (searchQuery) {
-              query = query.or(`username.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`);
+          if (term) {
+              query = query.or(`username.ilike.%${term}%,full_name.ilike.%${term}%`);
           }
           
           const { data, error } = await query;
@@ -117,7 +126,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                   username: p.username,
                   avatar: p.avatar_url,
                   status: p.status || 'offline',
-                  bio: p.bio
+                  bio: p.bio,
+                  isVerified: p.is_verified // Pass raw verified status for admin
               }));
               setGlobalSearchResults(mappedUsers);
           }
@@ -126,7 +136,7 @@ export const ChatList: React.FC<ChatListProps> = ({
       
       const timeout = setTimeout(searchUsers, 500);
       return () => clearTimeout(timeout);
-  }, [searchQuery, activeModal, userProfile.id]);
+  }, [searchQuery, adminUserSearch, activeModal]);
 
   const handleContextMenu = (e: React.MouseEvent, chat: Chat) => {
       e.preventDefault();
@@ -250,6 +260,61 @@ export const ChatList: React.FC<ChatListProps> = ({
     } else { showToast("Разрешите уведомления в браузере", "error"); }
   };
 
+  // --- ADMIN FUNCTIONS ---
+  const handleAdminTrigger = () => {
+      setAdminTapCount(prev => prev + 1);
+      if (adminTapCount + 1 >= 7) {
+          setAdminTapCount(0);
+          setActiveModal('admin_login');
+      }
+  };
+
+  const handleAdminLogin = () => {
+      if (adminPin === "2077") {
+          setActiveModal('admin_panel');
+          setAdminPin("");
+      } else {
+          showToast("Access Denied", "error");
+          setAdminPin("");
+      }
+  };
+
+  const handleAdminAction = async (action: 'verify' | 'username' | 'admin', payload: any) => {
+      if (!adminSelectedUser) return;
+      setAdminActionLoading(true);
+      try {
+          const updates: any = {};
+          if (action === 'verify') updates.is_verified = payload;
+          if (action === 'username') updates.username = payload;
+          if (action === 'admin') updates.is_admin = payload;
+
+          // First try to update directly (will fail if RLS blocks regular users)
+          // Since we are simulating "God Mode" for the demo, we rely on the policy we added:
+          // "Owner or Admin update profiles". If current user has is_admin=true in DB, this works.
+          // If not, we might need to assume the current session user IS an admin in the DB.
+          
+          // IMPORTANT: For this to work, you must execute the SQL script in App.tsx which adds RLS policies.
+          
+          const { error } = await supabase.from('profiles').update(updates).eq('id', adminSelectedUser.id);
+          
+          if (error) {
+              console.error(error);
+              showToast("Ошибка доступа (RLS). Вы не админ в БД.", "error");
+          } else {
+              showToast("Успешно обновлено", "success");
+              // Update local state
+              setAdminSelectedUser(prev => ({ ...prev, ...updates }));
+          }
+
+      } catch (e) {
+          console.error(e);
+          showToast("System Error", "error");
+      } finally {
+          setAdminActionLoading(false);
+      }
+  };
+
+
   const getPrivacyStatus = (val: PrivacyValue | undefined) => {
     if (val === 'everybody') return 'Все'; if (val === 'contacts') return 'Контакты'; if (val === 'nobody') return 'Никто'; return 'Никто';
   };
@@ -305,10 +370,10 @@ export const ChatList: React.FC<ChatListProps> = ({
           if (realtimeStatus) displayStatus = realtimeStatus; else displayStatus = 'offline';
           
           return (
-          <motion.div 
+          <MDiv 
             key={chat.id} 
             layout={!settings.liteMode} // Disable expensive layout animation in lite mode
-            onContextMenu={(e) => handleContextMenu(e, chat)}
+            onContextMenu={(e: any) => handleContextMenu(e, chat)}
             whileHover={{ scale: 1.01 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelectChat(chat.id, chat.user)}
@@ -327,6 +392,8 @@ export const ChatList: React.FC<ChatListProps> = ({
               <div className="flex justify-between items-baseline mb-1">
                 <h3 className="text-sm font-black truncate flex items-center gap-2">
                     {chat.user.name} 
+                    {/* Verified Badge Check in List */}
+                    {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     {chat.isMuted && <BellOff size={10} className="text-white/30" />}
                 </h3>
                 <span className="text-[10px] opacity-30 font-bold">
@@ -354,7 +421,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     {chat.unreadCount}
                 </div>
             )}
-          </motion.div>
+          </MDiv>
         )})}
       </div>
       
@@ -366,11 +433,11 @@ export const ChatList: React.FC<ChatListProps> = ({
 
       <AnimatePresence>
         {contextMenu && (
-           <motion.div
+           <MDiv
              initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }}
              style={{ top: contextMenu.y, left: contextMenu.x }}
              className="fixed z-[100] w-48 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden"
-             onClick={(e) => e.stopPropagation()}
+             onClick={(e: any) => e.stopPropagation()}
            >
               <button onClick={() => { onChatAction(contextMenu.chat.id, 'pin'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
                   <Pin size={14} className={contextMenu.chat.isPinned ? "text-vellor-red fill-vellor-red" : "text-white/60"} /> {contextMenu.chat.isPinned ? 'Открепить' : 'Закрепить'}
@@ -382,17 +449,20 @@ export const ChatList: React.FC<ChatListProps> = ({
               <button onClick={() => { onChatAction(contextMenu.chat.id, 'delete'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors">
                   <Trash2 size={14} /> Удалить чат
               </button>
-           </motion.div>
+           </MDiv>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
         {isMenuOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsMenuOpen(false)} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
-            <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="absolute top-20 left-4 w-60 bg-[#050505] border border-white/10 rounded-3xl z-50 p-2 shadow-2xl">
+            <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsMenuOpen(false)} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
+            <MDiv initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="absolute top-20 left-4 w-60 bg-[#050505] border border-white/10 rounded-3xl z-50 p-2 shadow-2xl">
               <div className="p-4 mb-2 bg-white/5 rounded-2xl border border-white/5">
-                 <p className="text-white font-bold">{userProfile.name}</p>
+                 <p className="text-white font-bold flex items-center gap-2">
+                     {userProfile.name}
+                     {userProfile.isVerified && <BadgeCheck size={14} className="text-blue-400 fill-blue-400/20" />}
+                 </p>
                  <p className="text-xs text-white/50">@{userProfile.username}</p>
               </div>
               <button onClick={() => { setActiveModal('profile'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all">
@@ -406,27 +476,142 @@ export const ChatList: React.FC<ChatListProps> = ({
               </button>
               <div className="h-px bg-white/5 my-2" />
               <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="flex items-center gap-4 w-full p-4 text-red-500/80 hover:text-red-500 rounded-2xl text-xs font-black tracking-widest uppercase transition-all"><LogOut size={16}/> Выйти</button>
-            </motion.div>
+            </MDiv>
           </>
         )}
 
         {/* --- MODALS SECTION --- */}
         {activeModal && (
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }} className="absolute inset-0 bg-[#0a0a0a] z-[60] flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
-              <div className="flex items-center gap-4">
-                {(activeModal === 'privacy' || activeModal === 'privacy_item' || activeModal === 'create_group') && (
-                    <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : activeModal === 'privacy_item' ? 'privacy' : 'settings')} className="p-2 text-white/40 hover:text-white transition-colors"><ChevronLeft size={24}/></button>
-                )}
-                <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">
-                  {activeModal === 'profile' ? 'Профиль' : activeModal === 'settings' ? 'Настройки' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : activeModal === 'nft' ? 'NFT Collection' : 'Приватность'}
-                </h2>
-              </div>
-              <button onClick={() => setActiveModal(null)} className="p-2.5 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={20}/></button>
-            </div>
+          <MDiv initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }} className="absolute inset-0 bg-[#0a0a0a] z-[60] flex flex-col overflow-hidden">
+            {activeModal !== 'admin_login' && activeModal !== 'admin_panel' && (
+                <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
+                <div className="flex items-center gap-4">
+                    {(activeModal === 'privacy' || activeModal === 'privacy_item' || activeModal === 'create_group') && (
+                        <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : activeModal === 'privacy_item' ? 'privacy' : 'settings')} className="p-2 text-white/40 hover:text-white transition-colors"><ChevronLeft size={24}/></button>
+                    )}
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">
+                    {activeModal === 'profile' ? 'Профиль' : activeModal === 'settings' ? 'Настройки' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : activeModal === 'nft' ? 'NFT Collection' : 'Приватность'}
+                    </h2>
+                </div>
+                <button onClick={() => setActiveModal(null)} className="p-2.5 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={20}/></button>
+                </div>
+            )}
             
             <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
               
+              {/* --- ADMIN LOGIN --- */}
+              {activeModal === 'admin_login' && (
+                  <div className="flex flex-col items-center justify-center h-full space-y-8">
+                      <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 animate-pulse">
+                          <Terminal size={40} className="text-green-500"/>
+                      </div>
+                      <h2 className="text-xl font-mono text-green-500 uppercase tracking-widest">System Access</h2>
+                      <input 
+                          type="password"
+                          maxLength={4}
+                          value={adminPin}
+                          onChange={(e) => setAdminPin(e.target.value)}
+                          className="bg-black border-b-2 border-green-500/50 text-center text-3xl font-mono text-green-500 w-32 py-2 focus:border-green-500 outline-none"
+                          placeholder="****"
+                      />
+                      <button onClick={handleAdminLogin} className="px-8 py-3 bg-green-500/20 hover:bg-green-500/30 text-green-500 font-mono text-xs uppercase border border-green-500/50 rounded-lg">Enter</button>
+                      <button onClick={() => setActiveModal(null)} className="text-white/20 hover:text-white text-xs mt-8">Cancel</button>
+                  </div>
+              )}
+
+              {/* --- ADMIN PANEL --- */}
+              {activeModal === 'admin_panel' && (
+                  <div className="flex flex-col h-full font-mono text-green-400">
+                      <div className="flex justify-between items-center mb-6 pb-4 border-b border-green-500/20">
+                          <h2 className="text-lg uppercase tracking-widest flex items-center gap-2"><ShieldAlert /> GOD MODE v1.0</h2>
+                          <button onClick={() => setActiveModal(null)}><X className="text-green-500"/></button>
+                      </div>
+
+                      <div className="space-y-6">
+                          {/* Search */}
+                          <div className="space-y-2">
+                              <label className="text-[10px] uppercase opacity-50">User Search Database</label>
+                              <div className="flex gap-2">
+                                  <input 
+                                      value={adminUserSearch}
+                                      onChange={(e) => setAdminUserSearch(e.target.value)}
+                                      placeholder="username or name..."
+                                      className="flex-1 bg-black border border-green-500/30 p-3 rounded text-sm text-green-400 placeholder:text-green-900 focus:border-green-500 outline-none"
+                                  />
+                              </div>
+                          </div>
+
+                          {/* Results / Selected User */}
+                          <div className="bg-black/50 border border-green-500/20 rounded p-4 h-64 overflow-y-auto custom-scrollbar">
+                              {!adminSelectedUser ? (
+                                  <div className="space-y-2">
+                                      {globalSearchResults.map(u => (
+                                          <div key={u.id} onClick={() => setAdminSelectedUser(u)} className="flex items-center justify-between p-2 hover:bg-green-500/10 cursor-pointer border-b border-green-500/10">
+                                              <span className="truncate max-w-[50%]">{u.name} (@{u.username})</span>
+                                              <span className="text-[10px] opacity-50">{u.id.substring(0,8)}...</span>
+                                          </div>
+                                      ))}
+                                      {globalSearchResults.length === 0 && <p className="text-center opacity-30 mt-10">Waiting for input...</p>}
+                                  </div>
+                              ) : (
+                                  <div className="space-y-4">
+                                      <button onClick={() => setAdminSelectedUser(null)} className="text-xs underline opacity-50 hover:opacity-100">&lt; Back to search</button>
+                                      
+                                      <div className="flex items-center gap-4 border-b border-green-500/20 pb-4">
+                                          <img src={adminSelectedUser.avatar || 'https://via.placeholder.com/40'} className="w-12 h-12 rounded bg-gray-900 object-cover grayscale" />
+                                          <div>
+                                              <h3 className="text-lg font-bold">{adminSelectedUser.name}</h3>
+                                              <p className="text-xs opacity-60">@{adminSelectedUser.username}</p>
+                                              <p className="text-[9px] opacity-40">{adminSelectedUser.id}</p>
+                                          </div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                          <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1">Status Flags</p>
+                                          <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
+                                              <span>Verified Badge</span>
+                                              <button onClick={() => handleAdminAction('verify', !adminSelectedUser.isVerified)} disabled={adminActionLoading} className={`px-2 py-1 text-[10px] border ${adminSelectedUser.isVerified ? 'bg-green-500 text-black border-green-500' : 'border-green-500/50 opacity-50'}`}>
+                                                  {adminSelectedUser.isVerified ? 'TRUE' : 'FALSE'}
+                                              </button>
+                                          </div>
+                                          <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
+                                              <span>Admin Access</span>
+                                              <button onClick={() => handleAdminAction('admin', !adminSelectedUser.isAdmin)} disabled={adminActionLoading} className="px-2 py-1 text-[10px] border border-green-500/50 opacity-50 hover:bg-green-500 hover:text-black">
+                                                  TOGGLE
+                                              </button>
+                                          </div>
+                                      </div>
+
+                                      <div className="space-y-2">
+                                          <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1">Override</p>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                 id="force-username"
+                                                 placeholder="New Username"
+                                                 className="flex-1 bg-black border border-green-500/30 p-2 text-xs text-green-400 outline-none"
+                                              />
+                                              <button 
+                                                onClick={() => {
+                                                    const val = (document.getElementById('force-username') as HTMLInputElement).value;
+                                                    if(val) handleAdminAction('username', val);
+                                                }}
+                                                className="px-3 bg-green-500/20 hover:bg-green-500/40 text-[10px] uppercase"
+                                              >
+                                                  Set
+                                              </button>
+                                          </div>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                          
+                          <div className="text-[9px] opacity-30 text-center pt-4">
+                              VELLOR SYSTEM KERNEL ACCESS GRANTED
+                          </div>
+                      </div>
+                  </div>
+              )}
+
               {/* --- NFT GALLERY MODAL --- */}
               {activeModal === 'nft' && <NftGallery />}
 
@@ -465,7 +650,10 @@ export const ChatList: React.FC<ChatListProps> = ({
                                           <img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" />
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                          <p className="text-sm font-bold truncate">{user.name}</p>
+                                          <div className="flex items-center gap-1">
+                                              <p className="text-sm font-bold truncate">{user.name}</p>
+                                              {user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
+                                          </div>
                                           <p className="text-xs opacity-40 truncate">@{user.username}</p>
                                       </div>
                                   </button>
@@ -665,7 +853,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                                     <div className="absolute bottom-4 left-4 flex flex-col items-start gap-1">
                                         <span className={`text-[10px] font-black tracking-[0.2em] uppercase ${currentThemeId === t.id ? t.accent : 'text-white/70'}`}>{t.name}</span>
                                         {currentThemeId === t.id && (
-                                            <motion.div layoutId="theme-active" className="h-0.5 w-6 bg-current rounded-full" />
+                                            <MDiv layoutId="theme-active" className="h-0.5 w-6 bg-current rounded-full" />
                                         )}
                                     </div>
                                 </button>
@@ -727,6 +915,11 @@ export const ChatList: React.FC<ChatListProps> = ({
                        </div>
                        <ChevronRight size={18} className="opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all"/>
                    </button>
+
+                   {/* Hidden Admin Trigger */}
+                   <div className="pt-8 text-center" onClick={handleAdminTrigger}>
+                      <p className="text-[9px] font-black uppercase text-white/10 tracking-[0.5em] select-none cursor-default">Vellor Messenger v1.0</p>
+                   </div>
                 </div>
               )}
 
@@ -784,7 +977,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </button>
                )}
             </div>
-          </motion.div>
+          </MDiv>
         )}
       </AnimatePresence>
     </div>

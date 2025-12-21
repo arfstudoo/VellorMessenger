@@ -4,6 +4,11 @@ import { Mic, MicOff, Video, VideoOff, PhoneOff, Phone, User, Monitor, MonitorOf
 import { supabase } from '../supabaseClient';
 import { CallState, CallType } from '../types';
 
+const MDiv = motion.div as any;
+const MImg = motion.img as any;
+const MH2 = motion.h2 as any;
+const MP = motion.p as any;
+
 interface CallModalProps {
   callState: CallState;
   callType: CallType;
@@ -479,7 +484,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   return (
-    <motion.div 
+    <MDiv 
       initial={{ opacity: 0, scale: 1.1 }} 
       animate={{ opacity: 1, scale: 1 }} 
       exit={{ opacity: 0, scale: 1.1, filter: "blur(20px)" }}
@@ -489,7 +494,7 @@ export const CallModal: React.FC<CallModalProps> = ({
       {/* 1. CINEMATIC BACKGROUND */}
       <div className="absolute inset-0 z-0 bg-[#0f0f0f]">
           {!remoteIsScreenSharing && (
-              <motion.img 
+              <MImg 
                 src={partnerAvatar || 'https://via.placeholder.com/500'} 
                 className="w-full h-full object-cover blur-[50px] opacity-60 scale-110"
                 animate={{ scale: [1.1, 1.2, 1.1] }}
@@ -505,20 +510,20 @@ export const CallModal: React.FC<CallModalProps> = ({
           
           {/* HEADER INFO */}
           <div className="pt-8 pb-4 text-center z-20 pointer-events-none">
-              <motion.h2 
+              <MH2 
                  initial={{ y: -20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                  className="text-2xl font-black text-white tracking-tight drop-shadow-xl"
               >
                   {partnerName}
-              </motion.h2>
-              <motion.p 
+              </MH2>
+              <MP 
                  initial={{ opacity: 0 }} animate={{ opacity: 0.7 }}
                  className="text-vellor-red uppercase tracking-[0.3em] font-bold text-[10px] mt-2 animate-pulse"
               >
                   {callState === 'calling' ? 'Исходящий вызов...' : 
                    callState === 'incoming' ? 'Входящий вызов...' : 
                    callState === 'connected' ? (partnerIsDeafened ? 'Собеседник заглушен' : (remoteIsScreenSharing ? 'Демонстрация экрана' : 'Соединение установлено')) : 'Завершение...'}
-              </motion.p>
+              </MP>
           </div>
 
           {/* CENTRAL VISUAL */}
@@ -526,7 +531,7 @@ export const CallModal: React.FC<CallModalProps> = ({
                
                {/* REMOTE VIDEO / SCREEN */}
                {callState === 'connected' && (
-                   <motion.div 
+                   <MDiv 
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} 
                       className={`relative w-full h-full flex items-center justify-center rounded-2xl overflow-hidden ${remoteIsScreenSharing ? 'bg-[#1a1a1a] shadow-2xl border border-white/10' : ''}`}
                       onContextMenu={handleContextMenu}
@@ -559,33 +564,33 @@ export const CallModal: React.FC<CallModalProps> = ({
                               )}
                           </div>
                        )}
-                   </motion.div>
+                   </MDiv>
                )}
 
                {/* PULSING AVATAR (Calling/Incoming) */}
                {(callState === 'calling' || callState === 'incoming') && (
                   <div className="relative">
                       {[1, 2, 3].map(i => (
-                          <motion.div 
+                          <MDiv 
                             key={i}
                             className="absolute inset-0 rounded-full border border-vellor-red/30"
                             animate={{ scale: [1, 2.5], opacity: [0.6, 0] }}
                             transition={{ repeat: Infinity, duration: 2, delay: i * 0.4, ease: "easeOut" }}
                           />
                       ))}
-                      <motion.div 
+                      <MDiv 
                          animate={{ scale: [1, 1.05, 1] }}
                          transition={{ repeat: Infinity, duration: 2 }}
                          className="w-40 h-40 rounded-full overflow-hidden border-2 border-white/20 shadow-[0_0_50px_rgba(255,0,51,0.4)] relative z-10 bg-black"
                       >
                          <img src={partnerAvatar} className="w-full h-full object-cover" />
-                      </motion.div>
+                      </MDiv>
                   </div>
                )}
 
                {/* LOCAL VIDEO (PIP) */}
                {callState === 'connected' && (
-                   <motion.div 
+                   <MDiv 
                       drag
                       dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
                       initial={{ scale: 0, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
@@ -607,13 +612,13 @@ export const CallModal: React.FC<CallModalProps> = ({
                                <VolumeX size={24} className="text-red-500" />
                            </div>
                        )}
-                   </motion.div>
+                   </MDiv>
                )}
           </div>
 
           {/* CONTROL BAR */}
           <div className="pb-8 pt-4 flex justify-center z-30 px-6">
-              <motion.div 
+              <MDiv 
                  initial={{ y: 50, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                  className="bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-3 flex items-center gap-3 shadow-[0_20px_40px_rgba(0,0,0,0.5)]"
               >
@@ -626,80 +631,4 @@ export const CallModal: React.FC<CallModalProps> = ({
                         <div className="w-px h-8 bg-white/10" />
                         <button onClick={handleManualAnswer} className="w-20 h-20 rounded-full bg-green-500 text-white shadow-[0_0_30px_rgba(34,197,94,0.4)] flex items-center justify-center transition-all active:scale-95 animate-pulse">
                             <Phone size={36} />
-                        </button>
-                      </>
-                  )}
-
-                  {/* ACTIVE CALL CONTROLS */}
-                  {callState !== 'incoming' && (
-                      <>
-                         {/* Mic Toggle */}
-                         <button onClick={toggleMic} disabled={isDeafened} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isMicOn && !isDeafened ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-red-500 text-white'}`}>
-                            {isMicOn && !isDeafened ? <Mic size={20} /> : <MicOff size={20} />}
-                         </button>
-                         
-                         {/* Video Toggle */}
-                         <button onClick={toggleVideo} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isVideoOn ? 'bg-white/5 hover:bg-white/10 text-white' : 'bg-white/5 text-red-500 relative overflow-hidden'}`}>
-                            {isVideoOn ? <Video size={20} /> : (
-                                <>
-                                  <div className="absolute inset-0 bg-red-500/10"/>
-                                  <VideoOff size={20} />
-                                </>
-                            )}
-                         </button>
-
-                         {/* Deafen Toggle */}
-                         <button onClick={toggleDeafen} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isDeafened ? 'bg-red-500 text-white' : 'bg-white/5 hover:bg-white/10 text-white'}`}>
-                            {isDeafened ? <VolumeX size={20} /> : <Headphones size={20} />}
-                         </button>
-
-                         {/* Screen Share */}
-                         <button onClick={toggleScreenShare} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isScreenSharing ? 'bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-white/5 hover:bg-white/10 text-white'}`}>
-                            {isScreenSharing ? <MonitorOff size={20} /> : <Monitor size={20} />}
-                         </button>
-
-                         <div className="w-px h-8 bg-white/10 mx-2" />
-
-                         {/* End Call */}
-                         <button onClick={handleManualEnd} className="w-14 h-14 rounded-2xl bg-red-600 hover:bg-red-500 text-white shadow-[0_0_30px_rgba(220,38,38,0.4)] flex items-center justify-center transition-all active:scale-95">
-                            <PhoneOff size={24} />
-                         </button>
-                      </>
-                  )}
-              </motion.div>
-          </div>
-
-          {/* CONTEXT MENU FOR VOLUME */}
-          <AnimatePresence>
-            {contextMenu && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    style={{ top: contextMenu.y, left: contextMenu.x }}
-                    className="fixed z-[300] bg-black/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl origin-top-left w-48"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <div className="flex items-center gap-2 mb-2 text-xs font-bold uppercase tracking-widest text-white/50 px-1">
-                        <Volume2 size={12} /> Громкость пользователя
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <input 
-                           type="range" 
-                           min="0" 
-                           max="1" 
-                           step="0.05" 
-                           value={remoteVolume}
-                           onChange={(e) => setRemoteVolume(parseFloat(e.target.value))}
-                           className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-vellor-red"
-                        />
-                        <span className="text-xs font-mono w-8 text-right">{Math.round(remoteVolume * 100)}%</span>
-                    </div>
-                </motion.div>
-            )}
-          </AnimatePresence>
-
-      </div>
-    </motion.div>
-  );
-};
+                        </

@@ -1,9 +1,14 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Camera, ChevronLeft, Check, AtSign, Upload, Loader2, LogIn, Palette, Zap, Sparkles, Moon, Sun, Leaf, AlertCircle, Ghost, RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
 import { supabase } from '../supabaseClient';
+
+const MDiv = motion.div as any;
+const MH1 = motion.h1 as any;
+const MP = motion.p as any;
+const MButton = motion.button as any;
 
 interface AuthScreenProps {
   onComplete: (data: UserProfile) => void;
@@ -132,6 +137,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
   });
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [emailSent, setEmailSent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const theme = THEMES[currentTheme];
@@ -195,6 +201,23 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
     setStep(prev => prev - 1);
   };
 
+  const handleGuestLogin = () => {
+      setLoading(true);
+      setTimeout(() => {
+          onComplete({
+              id: 'guest-' + Date.now(),
+              name: 'Гость',
+              username: 'guest',
+              avatar: '',
+              phone: '',
+              email: '',
+              bio: 'Я просто смотрю.',
+              status: 'online'
+          });
+          setLoading(false);
+      }, 1000);
+  };
+
   const handleLogin = async () => {
       setLoading(true);
       setErrors({}); // Clear previous errors
@@ -222,7 +245,9 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                   phone: data.user.email || '',
                   email: data.user.email,
                   bio: profile.bio || '',
-                  status: 'online'
+                  status: 'online',
+                  isAdmin: profile.is_admin,
+                  isVerified: profile.is_verified
               });
           } else {
              // Fallback if profile trigger failed
@@ -279,287 +304,302 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                   if (!uploadError) {
                       const { data: publicUrlData } = supabase.storage.from('avatars').getPublicUrl(fileName);
                       avatarUrl = publicUrlData.publicUrl;
+                      // Profile updated via trigger usually, but we update explicitly to be safe
                       await supabase.from('profiles').update({ avatar_url: avatarUrl }).eq('id', userId);
                   }
               }
 
               await supabase.from('profiles').update({ status: 'online' }).eq('id', userId);
+              
+              const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
 
-              onComplete({
-                  id: userId,
-                  name: fullName,
-                  username: formData.username,
-                  avatar: avatarUrl,
-                  phone: formData.email,
-                  email: formData.email,
-                  bio: 'Привет! Я использую Vellor.',
-                  status: 'online'
-              });
+              if (profile) {
+                  onComplete({
+                      id: profile.id,
+                      name: profile.full_name,
+                      username: profile.username,
+                      avatar: profile.avatar_url,
+                      phone: authData.user.email || '',
+                      email: authData.user.email,
+                      bio: profile.bio || '',
+                      status: 'online',
+                      isAdmin: profile.is_admin,
+                      isVerified: profile.is_verified
+                  });
+              } else {
+                 onComplete({
+                     id: userId,
+                     name: fullName,
+                     username: formData.username,
+                     avatar: avatarUrl,
+                     phone: authData.user.email || '',
+                     email: authData.user.email,
+                     bio: '',
+                     status: 'online'
+                 });
+              }
           } else {
-              // Email confirmation required case
-              setErrors({ form: '✅ Письмо отправлено! Пожалуйста, проверьте почту (и папку спам) для подтверждения аккаунта.' });
+              setEmailSent(true);
           }
       }
       setLoading(false);
   };
 
-  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setFormData(prev => ({ ...prev, avatarPreview: url, avatarFile: file }));
-    }
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-        e.preventDefault();
-        if (loading) return;
-        if (mode === 'login') {
-             handleFirstStepNext();
-        } else {
-            if (step === 1) handleFirstStepNext();
-            else if (step === 2) nextStep();
-            else if (step === 3) nextStep();
-            else if (step === 4) handleRegister();
-        }
-    }
-  };
-
-  const variants = {
-    enter: (direction: number) => ({ x: direction > 0 ? 50 : -50, opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (direction: number) => ({ x: direction < 0 ? 50 : -50, opacity: 0 })
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          setFormData(prev => ({ ...prev, avatarFile: file, avatarPreview: URL.createObjectURL(file) }));
+      }
   };
 
   return (
-    <motion.div 
-        key="auth-root"
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 1.05 }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className="fixed inset-0 flex flex-col items-center justify-center p-6 z-40 overflow-hidden"
-    >
-        {/* Animated Dynamic Background */}
-        <motion.div 
-            className="absolute inset-0 z-0"
-            animate={{ background: theme.bgGradient }}
-            transition={{ duration: 1.5, ease: "easeInOut" }}
-        />
-        
-        {/* Animated Background Noise */}
-        <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] z-0 pointer-events-none" />
-        
-        {/* Floating Particles/Glow */}
-        <motion.div 
-            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.5, 0.3] }}
-            transition={{ repeat: Infinity, duration: 8 }}
-            className={`absolute top-1/4 left-1/4 w-[500px] h-[500px] rounded-full blur-[100px] opacity-20 pointer-events-none ${theme.accentBg}`}
-        />
+    <div className="fixed inset-0 w-full h-full flex items-center justify-center bg-black overflow-hidden font-sans">
+       {/* Background */}
+       <div className="absolute inset-0 z-0 transition-all duration-1000 ease-in-out" style={{ background: theme.bgGradient }}>
+           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.03]" />
+           {/* Animated Background Blob */}
+           <MDiv 
+              className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full blur-[100px] opacity-20 ${theme.accentBg}`}
+              animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.3, 0.2] }}
+              transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }}
+           />
+       </div>
 
-        {/* --- MAIN CARD --- */}
-        <motion.div 
-            layout
-            className={`relative w-full max-w-[420px] bg-black/40 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 overflow-hidden z-20 ${theme.glow} transition-shadow duration-700`}
-        >
-            
-            {/* Header / Logo */}
-            <div className="flex flex-col items-center mb-6 relative z-10">
-                 <motion.div 
-                    whileHover={{ scale: 1.05, rotate: 5 }}
-                    whileTap={{ scale: 0.95 }}
-                    className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 border border-white/10 bg-white/5 relative group cursor-pointer transition-colors`}
-                    onClick={cycleTheme}
-                 >
-                      <div className={`absolute inset-0 rounded-2xl blur-lg opacity-40 group-hover:opacity-70 transition-opacity duration-500 ${theme.accentBg}`} />
-                      <ThemeIcon size={28} className={`${theme.accentColor} relative z-10 drop-shadow-[0_0_10px_currentColor] transition-colors duration-500`} />
-                 </motion.div>
-                 
-                 <AnimatePresence mode="wait">
-                    <motion.h2 
-                        key={mode}
-                        initial={{ y: 10, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: -10, opacity: 0 }}
-                        className="text-2xl font-black tracking-[0.3em] text-white text-center"
-                    >
-                        {mode === 'register' ? 'РЕГИСТРАЦИЯ' : 'ВХОД'}
-                    </motion.h2>
-                 </AnimatePresence>
-                 
-                 {mode === 'register' && (
-                     <div className="flex gap-2 mt-6">
-                        {[1, 2, 3, 4].map(i => (
-                            <div 
-                                key={i} 
-                                className={`h-1 rounded-full transition-all duration-500 ${step >= i ? `w-8 ${theme.accentBg}` : 'w-2 bg-white/10'}`} 
-                            />
-                        ))}
-                     </div>
-                 )}
-            </div>
+       {/* Main Card */}
+       <MDiv 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, ease: "circOut" }}
+          className={`relative z-10 w-[90%] max-w-[420px] bg-black/60 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col ${theme.glow}`}
+       >
+          {/* Theme Switcher (Top Right) */}
+          <button onClick={cycleTheme} className="absolute top-6 right-6 p-2 rounded-full bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-all z-20">
+             <Palette size={18} />
+          </button>
 
-            {/* Content Area */}
-            <div className="relative min-h-[300px]">
-                <AnimatePresence initial={false} custom={direction} mode="wait">
-                    
-                    {/* STEP 1: EMAIL & PASSWORD */}
-                    {step === 1 && (
-                        <motion.div key="step1" custom={direction} variants={variants} initial="enter" animate="center" exit="exit" transition={{ type: "spring", stiffness: 300, damping: 30 }} className="absolute inset-0 flex flex-col">
-                            <h3 className="text-sm font-bold text-white/50 mb-6 text-center uppercase tracking-widest">
-                                {mode === 'register' ? 'Создание учетной записи' : 'Добро пожаловать'}
-                            </h3>
-                            
+          {/* Header */}
+          <div className="pt-10 px-8 pb-6 flex flex-col items-center">
+             <div className={`w-16 h-16 rounded-2xl ${theme.accentBg} flex items-center justify-center shadow-lg mb-6 rotate-3 hover:rotate-6 transition-transform`}>
+                 <ThemeIcon size={32} className="text-white drop-shadow-md" />
+             </div>
+             <h1 className="text-3xl font-black text-white tracking-tight mb-2">VELLOR</h1>
+             <p className={`text-[10px] font-bold uppercase tracking-[0.4em] ${theme.accentColor} opacity-80`}>{theme.label} EDITION</p>
+          </div>
+
+          {/* Mode Switcher (Hide if Email Sent) */}
+          {!emailSent && (
+              <div className="flex px-8 mb-8">
+                 <div className="w-full bg-white/5 rounded-2xl p-1 flex relative">
+                     <MDiv 
+                        layoutId="mode-pill"
+                        className="absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white/10 rounded-xl shadow-sm"
+                        initial={false}
+                        animate={{ x: mode === 'login' ? 0 : '100%' }}
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                     />
+                     <button onClick={() => setMode('login')} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-wider transition-colors ${mode === 'login' ? 'text-white' : 'text-white/40'}`}>Вход</button>
+                     <button onClick={() => { setMode('register'); setStep(1); }} className={`flex-1 relative z-10 py-3 text-xs font-black uppercase tracking-wider transition-colors ${mode === 'register' ? 'text-white' : 'text-white/40'}`}>Регистрация</button>
+                 </div>
+              </div>
+          )}
+
+          {/* Form Content */}
+          <div className="px-8 pb-10 flex-1 relative min-h-[300px]">
+             <AnimatePresence mode="wait" custom={direction}>
+                
+                {/* EMAIL SENT SUCCESS STATE */}
+                {emailSent ? (
+                    <MDiv key="email-sent" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="flex flex-col items-center text-center space-y-6 pt-4">
+                        <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center border border-green-500/20 animate-pulse">
+                            <Mail size={40} className="text-green-500"/>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-bold text-white mb-2">Письмо отправлено!</h3>
+                            <p className="text-white/60 text-xs leading-relaxed">
+                                Мы отправили ссылку для входа на <strong>{formData.email}</strong>.
+                            </p>
+                        </div>
+                        
+                        <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl w-full">
+                            <p className="text-yellow-400 text-[10px] font-bold uppercase tracking-widest mb-2 flex items-center justify-center gap-2">
+                                <AlertCircle size={14}/> Внимание
+                            </p>
+                            <p className="text-white/70 text-[11px] leading-relaxed">
+                                Письма от Supabase могут задерживаться или попадать в спам.
+                                <br/><br/>
+                                <span className="text-white font-bold">Если письмо не пришло:</span>
+                                <br/>
+                                Обратитесь к Администратору для ручной верификации и смены пароля через <span className="text-vellor-red">Admin Panel</span>.
+                            </p>
+                        </div>
+
+                        <button onClick={() => { setEmailSent(false); setMode('login'); }} className="text-white/40 hover:text-white text-xs underline transition-colors">
+                            Вернуться ко входу
+                        </button>
+                        
+                        <button onClick={handleGuestLogin} className="w-full py-3 text-white/30 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2 border-t border-white/10 pt-4">
+                            <Ghost size={14}/> Войти как гость пока жду
+                        </button>
+                    </MDiv>
+                ) : (
+                    <>
+                    {/* LOGIN FORM */}
+                    {mode === 'login' && (
+                        <MDiv key="login" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="space-y-4">
                             <div className="space-y-4">
-                                <div className="group space-y-2">
-                                    <div className={`flex items-center bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 transition-all duration-300 group-focus-within:${theme.inputFocus} ${errors.email ? 'border-red-500' : ''}`}>
-                                        <Mail size={18} className="text-white/40 mr-3 transition-colors group-focus-within:text-white" />
+                                <div className="group">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-3 mb-1 block group-focus-within:text-white/80 transition-colors">Email</label>
+                                    <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                        <Mail size={18} className="text-white/30" />
                                         <input 
-                                            type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} onKeyDown={handleKeyDown}
-                                            placeholder="Email" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-medium" autoFocus
-                                            autoComplete="email"
+                                            type="email" 
+                                            value={formData.email} 
+                                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                                            className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20"
+                                            placeholder="user@example.com"
                                         />
                                     </div>
-                                    {errors.email && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide ml-1">{errors.email}</p>}
+                                    {errors.email && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.email}</p>}
                                 </div>
-
-                                <div className="group space-y-2">
-                                    <div className={`flex items-center bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 transition-all duration-300 group-focus-within:${theme.inputFocus} ${errors.password ? 'border-red-500' : ''}`}>
-                                        <Lock size={18} className="text-white/40 mr-3 transition-colors group-focus-within:text-white" />
+                                <div className="group">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-3 mb-1 block group-focus-within:text-white/80 transition-colors">Пароль</label>
+                                    <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                        <Lock size={18} className="text-white/30" />
                                         <input 
-                                            type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} onKeyDown={handleKeyDown}
-                                            placeholder="Пароль" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-medium"
-                                            autoComplete={mode === 'register' ? 'new-password' : 'current-password'}
+                                            type="password" 
+                                            value={formData.password}
+                                            onChange={(e) => setFormData({...formData, password: e.target.value})}
+                                            className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20"
+                                            placeholder="••••••••"
                                         />
                                     </div>
-                                    {errors.password && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide ml-1">{errors.password}</p>}
+                                    {errors.password && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.password}</p>}
                                 </div>
                             </div>
 
                             {errors.form && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
-                                    <AlertCircle size={20} className="text-red-500 shrink-0" />
-                                    <p className="text-red-500 text-xs font-bold leading-tight">{errors.form}</p>
-                                </motion.div>
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                                    <AlertCircle size={16} className="text-red-500 shrink-0"/>
+                                    <p className="text-[10px] font-bold text-red-400 leading-tight">{errors.form}</p>
+                                </div>
                             )}
 
-                            <div className="mt-auto pt-6">
-                                <button 
-                                    onClick={handleFirstStepNext} disabled={loading}
-                                    className={`relative w-full overflow-hidden ${theme.buttonGradient} text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 hover:brightness-110 group`}
-                                >
-                                    <div className="absolute inset-0 bg-white/20 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-500 skew-x-12" />
-                                    {loading ? <Loader2 className="animate-spin" /> : (mode === 'register' ? 'Продолжить' : 'Войти')} 
-                                    {!loading && (mode === 'register' ? <ArrowRight size={18} /> : <LogIn size={18} />)}
+                            <button onClick={handleFirstStepNext} disabled={loading} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 mt-4 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 ${theme.buttonGradient}`}>
+                                {loading ? <Loader2 className="animate-spin" /> : <>Войти <LogIn size={16}/></>}
+                            </button>
+                            
+                            <button onClick={handleGuestLogin} className="w-full py-3 text-white/30 hover:text-white text-[10px] font-bold uppercase tracking-widest transition-colors flex items-center justify-center gap-2">
+                                <Ghost size={14}/> Войти как гость
+                            </button>
+                        </MDiv>
+                    )}
+
+                    {/* REGISTER FORM - STEP 1 */}
+                    {mode === 'register' && step === 1 && (
+                        <MDiv key="reg-1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-4">
+                            <div className="space-y-4">
+                                <div className="group">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-3 mb-1 block group-focus-within:text-white/80 transition-colors">Email</label>
+                                    <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                        <Mail size={18} className="text-white/30" />
+                                        <input type="email" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20" placeholder="user@example.com" />
+                                    </div>
+                                    {errors.email && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.email}</p>}
+                                </div>
+                                <div className="group">
+                                    <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-3 mb-1 block group-focus-within:text-white/80 transition-colors">Придумайте пароль</label>
+                                    <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                        <Lock size={18} className="text-white/30" />
+                                        <input type="password" value={formData.password} onChange={(e) => setFormData({...formData, password: e.target.value})} className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20" placeholder="Min. 6 characters" />
+                                    </div>
+                                    {errors.password && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.password}</p>}
+                                </div>
+                            </div>
+                            <button onClick={nextStep} className={`w-full py-4 rounded-2xl text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 mt-4 hover:scale-[1.02] active:scale-[0.98] transition-all ${theme.buttonGradient}`}>
+                                Далее <ArrowRight size={16}/>
+                            </button>
+                        </MDiv>
+                    )}
+
+                    {/* REGISTER FORM - STEP 2 */}
+                    {mode === 'register' && step === 2 && (
+                        <MDiv key="reg-2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                            <div className="text-center">
+                                <h3 className="text-white font-bold text-lg">Как вас называть?</h3>
+                                <p className="text-white/40 text-xs mt-1">Придумайте уникальный username</p>
+                            </div>
+                            
+                            <div className="group">
+                                <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                    <AtSign size={18} className="text-white/30" />
+                                    <input value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20" placeholder="username" autoFocus />
+                                </div>
+                                {errors.username && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.username}</p>}
+                            </div>
+
+                            <div className="flex gap-3">
+                                <button onClick={prevStep} className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors"><ChevronLeft size={20}/></button>
+                                <button onClick={nextStep} className={`flex-1 py-4 rounded-2xl text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all ${theme.buttonGradient}`}>
+                                    Далее <ArrowRight size={16}/>
                                 </button>
                             </div>
-                        </motion.div>
+                        </MDiv>
                     )}
 
-                    {/* STEP 2: USERNAME */}
-                    {mode === 'register' && step === 2 && (
-                        <motion.div key="step2" custom={direction} variants={variants} initial="enter" animate="center" exit="exit" transition={{ type: "spring", stiffness: 300, damping: 30 }} className="absolute inset-0 flex flex-col">
-                            <h3 className="text-sm font-bold text-white/50 mb-2 text-center uppercase tracking-widest">Уникальное имя</h3>
-                            <p className="text-white/30 text-xs text-center mb-8 px-4">Это имя будут видеть другие пользователи в поиске</p>
-                            
-                            <div className={`flex items-center bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 transition-all duration-300 group-focus-within:${theme.inputFocus} ${errors.username ? 'border-red-500' : ''}`}>
-                                <AtSign size={18} className={`${theme.accentColor} mr-3`} />
-                                <input 
-                                    type="text" value={formData.username} onChange={(e) => setFormData({...formData, username: e.target.value.toLowerCase().replace(/\s/g, '')})} onKeyDown={handleKeyDown}
-                                    placeholder="username" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-lg font-bold" autoFocus 
-                                />
-                            </div>
-                            {errors.username && <p className="text-red-500 text-[10px] font-bold uppercase tracking-wide mt-2 ml-1">{errors.username}</p>}
-                            
-                            <div className="mt-auto pt-6 flex gap-3">
-                                <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
-                                <button onClick={nextStep} disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50">Далее</button>
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* STEP 3: NAMES */}
+                    {/* REGISTER FORM - STEP 3 */}
                     {mode === 'register' && step === 3 && (
-                         <motion.div key="step3" custom={direction} variants={variants} initial="enter" animate="center" exit="exit" transition={{ type: "spring", stiffness: 300, damping: 30 }} className="absolute inset-0 flex flex-col">
-                            <h3 className="text-sm font-bold text-white/50 mb-6 text-center uppercase tracking-widest">Как вас зовут?</h3>
-                            <div className="space-y-4">
-                                <div className={`flex items-center bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 transition-all duration-300 group-focus-within:${theme.inputFocus} ${errors.firstName ? 'border-red-500' : ''}`}>
-                                    <User size={18} className="text-white/40 mr-3" />
-                                    <input type="text" value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} onKeyDown={handleKeyDown} placeholder="Имя" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-bold" autoFocus />
+                        <MDiv key="reg-3" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-6">
+                            <div className="flex flex-col items-center gap-4">
+                                <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+                                    <div className={`w-24 h-24 rounded-3xl bg-black/40 border-2 border-dashed ${formData.avatarPreview ? 'border-transparent' : 'border-white/20'} flex items-center justify-center overflow-hidden transition-all hover:border-white/40`}>
+                                        {formData.avatarPreview ? (
+                                            <img src={formData.avatarPreview} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <Camera size={32} className="text-white/20" />
+                                        )}
+                                    </div>
+                                    <div className={`absolute -bottom-2 -right-2 p-2 rounded-full text-white shadow-lg ${theme.accentBg}`}><Upload size={14}/></div>
+                                    <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
                                 </div>
-                                <div className={`flex items-center bg-black/30 border border-white/10 rounded-2xl px-4 py-3.5 transition-all duration-300 group-focus-within:${theme.inputFocus}`}>
-                                    <User size={18} className="text-white/10 mr-3" />
-                                    <input type="text" value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} onKeyDown={handleKeyDown} placeholder="Фамилия (необязательно)" className="bg-transparent border-none outline-none text-white w-full placeholder:text-white/20 text-sm font-medium" />
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-white/30">Фото профиля (опционально)</p>
+                            </div>
+
+                            <div className="space-y-3">
+                                <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                    <User size={18} className="text-white/30" />
+                                    <input value={formData.firstName} onChange={(e) => setFormData({...formData, firstName: e.target.value})} className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20" placeholder="Имя" />
                                 </div>
+                                <div className={`flex items-center bg-black/40 border border-white/10 rounded-2xl px-4 transition-all focus-within:bg-black/60 ${theme.inputFocus}`}>
+                                    <User size={18} className="text-white/30" />
+                                    <input value={formData.lastName} onChange={(e) => setFormData({...formData, lastName: e.target.value})} className="w-full bg-transparent border-none p-4 text-sm font-bold text-white outline-none placeholder:text-white/20" placeholder="Фамилия (опционально)" />
+                                </div>
+                                {errors.firstName && <p className="text-[10px] text-red-500 font-bold ml-3 mt-1">{errors.firstName}</p>}
                             </div>
-                            <div className="mt-auto pt-6 flex gap-3">
-                                <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
-                                <button onClick={nextStep} disabled={loading} className="flex-1 bg-white text-black hover:bg-gray-200 font-black uppercase tracking-widest py-4 rounded-2xl transition-all active:scale-[0.98] disabled:opacity-50">Далее</button>
+
+                            {errors.form && (
+                                <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3">
+                                    <AlertCircle size={16} className="text-red-500 shrink-0"/>
+                                    <p className="text-[10px] font-bold text-red-400 leading-tight">{errors.form}</p>
+                                </div>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button onClick={prevStep} className="p-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/50 hover:text-white transition-colors"><ChevronLeft size={20}/></button>
+                                <button onClick={handleRegister} disabled={loading} className={`flex-1 py-4 rounded-2xl text-white font-black uppercase text-xs tracking-[0.2em] shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 ${theme.buttonGradient}`}>
+                                    {loading ? <Loader2 className="animate-spin" /> : <>Завершить <Check size={16}/></>}
+                                </button>
                             </div>
-                        </motion.div>
+                        </MDiv>
                     )}
-
-                    {/* STEP 4: AVATAR */}
-                    {mode === 'register' && step === 4 && (
-                        <motion.div key="step4" custom={direction} variants={variants} initial="enter" animate="center" exit="exit" transition={{ type: "spring", stiffness: 300, damping: 30 }} className="absolute inset-0 flex flex-col items-center">
-                             <h3 className="text-sm font-bold text-white/50 mb-2 text-center uppercase tracking-widest">Фото профиля</h3>
-                             <p className="text-white/30 text-xs text-center mb-8">Необязательно, но желательно</p>
-                             
-                             <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
-                                 <div className={`w-32 h-32 rounded-[2rem] border-2 border-dashed border-white/20 flex items-center justify-center bg-black/20 group-hover:bg-white/5 transition-all overflow-hidden relative group-hover:${theme.inputFocus}`}>
-                                     {formData.avatarPreview ? (<img src={formData.avatarPreview} alt="Preview" className="w-full h-full object-cover" />) : (<div className="flex flex-col items-center text-white/30"><Camera size={28} className="mb-2" /><span className="text-[10px] uppercase font-bold">Загрузить</span></div>)}
-                                 </div>
-                                 <div className={`absolute -bottom-2 -right-2 p-2 rounded-full text-white shadow-lg ${theme.accentBg}`}><Upload size={16}/></div>
-                                 <input type="file" ref={fileInputRef} onChange={handleAvatarUpload} accept="image/*" className="hidden" />
-                             </div>
-                             
-                             {errors.form && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 w-full">
-                                    <AlertCircle size={20} className="text-red-500 shrink-0" />
-                                    <p className="text-red-500 text-xs font-bold leading-tight">{errors.form}</p>
-                                </motion.div>
-                             )}
-
-                             <div className="mt-auto w-full pt-6 flex gap-3">
-                                 <button onClick={prevStep} disabled={loading} className="px-4 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white transition-colors border border-white/5 disabled:opacity-50"><ChevronLeft size={24} /></button>
-                                 <button onClick={handleRegister} disabled={loading} className={`flex-1 ${theme.buttonGradient} text-white font-black uppercase tracking-widest py-4 rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-50 hover:brightness-110`}>
-                                     {loading ? <Loader2 className="animate-spin" /> : 'Завершить'} {!loading && <Check size={18} />}
-                                 </button>
-                             </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* Switch Mode */}
-            {!loading && (
-                <div className="mt-8 text-center relative z-20">
-                    <button 
-                        onClick={() => { setMode(prev => prev === 'login' ? 'register' : 'login'); setStep(1); setErrors({}); }} 
-                        className="text-xs font-bold text-white/50 hover:text-white transition-colors uppercase tracking-wider"
-                    >
-                        {mode === 'register' ? 'Уже есть аккаунт? ' : 'Нет аккаунта? '}
-                        <span className={`${theme.accentColor} font-black underline decoration-2 underline-offset-4 decoration-transparent hover:decoration-current transition-all`}>
-                             {mode === 'register' ? 'Войти' : 'Создать'}
-                        </span>
-                    </button>
-                </div>
-            )}
-        </motion.div>
-
-        {/* --- BOTTOM LEFT THEME SWITCHER --- */}
-        <motion.button
-            whileHover={{ scale: 1.1, rotate: 15 }}
-            whileTap={{ scale: 0.9 }}
-            onClick={cycleTheme}
-            className="absolute bottom-6 left-6 p-3 rounded-full bg-black/40 backdrop-blur-md border border-white/10 text-white/50 hover:text-white hover:border-white/30 transition-all z-50 flex items-center gap-2 group"
-        >
-            <Palette size={20} />
-            <span className="text-[10px] font-black uppercase tracking-widest w-0 overflow-hidden group-hover:w-auto group-hover:pl-2 transition-all duration-300 whitespace-nowrap opacity-0 group-hover:opacity-100">
-                {theme.label}
-            </span>
-        </motion.button>
-    </motion.div>
+                    </>
+                )}
+             </AnimatePresence>
+          </div>
+       </MDiv>
+       
+       <div className="absolute bottom-6 text-[10px] font-black uppercase tracking-[0.3em] text-white/10 pointer-events-none">
+           Secure Encrypted Connection
+       </div>
+    </div>
   );
 };
