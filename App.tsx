@@ -649,6 +649,30 @@ const App: React.FC = () => {
       if (presenceChannelRef.current) await presenceChannelRef.current.track({ online_at: new Date().toISOString(), user_id: userProfile.id, status: status });
       await supabase.from('profiles').update({ status }).eq('id', userProfile.id);
   };
+  
+  const handleSaveProfile = async (updatedProfile: UserProfile) => {
+      try {
+          const { error } = await supabase.from('profiles').update({
+              full_name: updatedProfile.name,
+              username: updatedProfile.username,
+              bio: updatedProfile.bio
+          }).eq('id', updatedProfile.id);
+
+          if (error) {
+              if (error.code === '23505') { // Postgres Unique Violation
+                   showToast("Этот юзернейм уже занят", "error");
+              } else {
+                   showToast("Ошибка сохранения профиля", "error");
+                   console.error(error);
+              }
+          } else {
+              showToast("Профиль сохранен", "success");
+              setUserProfile(updatedProfile);
+          }
+      } catch (e) {
+          showToast("Ошибка соединения", "error");
+      }
+  };
 
   const retryConnection = () => {
       setIsDatabaseError(false);
@@ -696,7 +720,7 @@ const App: React.FC = () => {
                       </div>
                   </div>
               ) : (
-                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={() => {}} showToast={showToast} onlineUsers={onlineUsers} />
+                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={() => {}} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} />
               )}
             </div>
             <div className="flex-1 h-full bg-black/10 relative">

@@ -94,19 +94,23 @@ const THEMES: Record<AuthTheme, {
 };
 
 const getFriendlyErrorMessage = (errorMsg: string): string => {
+    // Supabase Rate Limit Error
     if (errorMsg.includes("security purposes") || errorMsg.includes("rate limit") || errorMsg.includes("429")) {
-        return "Слишком частые запросы. Пожалуйста, подождите 1 минуту перед повторной попыткой.";
+        return "Слишком частые запросы. Система безопасности временно ограничила отправку писем. Пожалуйста, подождите 1-2 минуты.";
     }
     if (errorMsg.includes("User already registered")) {
-        return "Пользователь с таким email уже зарегистрирован.";
+        return "Пользователь с таким email уже зарегистрирован. Попробуйте войти.";
     }
     if (errorMsg.includes("Invalid login credentials")) {
         return "Неверный email или пароль.";
     }
     if (errorMsg.includes("validation failed")) {
-        return "Проверьте правильность введенных данных.";
+        return "Проверьте правильность введенных данных (Email должен быть настоящим).";
     }
-    return errorMsg; // Fallback to original message if unknown
+    if (errorMsg.includes("Database error")) {
+        return "Ошибка соединения с базой данных. Попробуйте позже.";
+    }
+    return errorMsg; 
 };
 
 export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
@@ -221,6 +225,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                   status: 'online'
               });
           } else {
+             // Fallback if profile trigger failed
              onComplete({
                  id: data.user.id,
                  name: 'User',
@@ -262,6 +267,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
 
       if (authData.user) {
           if (authData.session) {
+              // Auto-login case (if email confirmation is off in Supabase)
               const userId = authData.user.id;
               let avatarUrl = '';
 
@@ -290,7 +296,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onComplete }) => {
                   status: 'online'
               });
           } else {
-              setErrors({ form: 'Регистрация успешна! Проверьте email для подтверждения.' });
+              // Email confirmation required case
+              setErrors({ form: '✅ Письмо отправлено! Пожалуйста, проверьте почту (и папку спам) для подтверждения аккаунта.' });
           }
       }
       setLoading(false);

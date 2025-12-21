@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -14,6 +14,7 @@ interface ChatListProps {
   onSelectChat: (id: string, user: any) => void;
   userProfile: UserProfile;
   onUpdateProfile: (p: UserProfile) => void;
+  onSaveProfile: (p: UserProfile) => Promise<void>;
   onSetTheme: (theme: string) => void;
   currentThemeId: string;
   onUpdateStatus: (status: UserStatus) => void;
@@ -60,11 +61,12 @@ const StatusIndicator: React.FC<{ status: UserStatus; size?: string }> = ({ stat
 };
 
 export const ChatList: React.FC<ChatListProps> = ({ 
-  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers
+  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers
 }) => {
   const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentPrivacyKey, setCurrentPrivacyKey] = useState<keyof UserProfile | null>(null);
   const [currentPrivacyLabel, setCurrentPrivacyLabel] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -589,6 +591,17 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm font-bold focus:border-vellor-red/50 outline-none transition-all" />
                     </div>
                     <div className="space-y-2">
+                        <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Юзернейм</label>
+                        <div className="flex items-center bg-white/5 border border-white/5 rounded-2xl px-4 transition-all focus-within:border-vellor-red/50">
+                            <span className="text-white/30 text-sm font-bold">@</span>
+                            <input 
+                                value={userProfile.username} 
+                                onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} 
+                                className="w-full bg-transparent border-none p-4 pl-1 text-sm font-bold outline-none text-white" 
+                            />
+                        </div>
+                    </div>
+                    <div className="space-y-2">
                         <label className="text-[10px] font-bold uppercase opacity-50 tracking-wider ml-2">Bio</label>
                         <textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-white/5 border border-white/5 rounded-2xl p-4 text-sm min-h-[100px] resize-none focus:border-vellor-red/50 outline-none transition-all" />
                     </div>
@@ -757,8 +770,17 @@ export const ChatList: React.FC<ChatListProps> = ({
             {/* Footer Action */}
             <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                {activeModal === 'profile' && (
-                 <button onClick={() => setActiveModal(null)} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3">
-                    Сохранить
+                 <button 
+                     onClick={async () => {
+                         setIsSaving(true);
+                         await onSaveProfile(userProfile);
+                         setIsSaving(false);
+                         setActiveModal(null);
+                     }}
+                     disabled={isSaving}
+                     className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+                 >
+                    {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить'}
                  </button>
                )}
             </div>
