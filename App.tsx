@@ -236,6 +236,10 @@ const App: React.FC = () => {
   const userProfileRef = useRef<UserProfile | null>(null);
   const presenceChannelRef = useRef<any | null>(null);
 
+  // Audio Refs (New approach using <audio> tags)
+  const notificationAudioRef = useRef<HTMLAudioElement>(null);
+  const ringtoneAudioRef = useRef<HTMLAudioElement>(null);
+
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [tempChatUser, setTempChatUser] = useState<User | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -303,12 +307,17 @@ const App: React.FC = () => {
   };
 
   const playNotificationSound = () => {
-      if (!settings.sound) return;
+      if (!settings.sound || !notificationAudioRef.current) return;
       try {
           const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === settings.notificationSound) || NOTIFICATION_SOUNDS[0];
-          const audio = new Audio(soundDef.url);
-          audio.volume = 0.6;
-          audio.play().catch(e => console.warn("Audio play blocked (interaction required)", e));
+          
+          if (notificationAudioRef.current.src !== soundDef.url) {
+               notificationAudioRef.current.src = soundDef.url;
+          }
+          
+          notificationAudioRef.current.volume = 0.6;
+          notificationAudioRef.current.currentTime = 0;
+          notificationAudioRef.current.play().catch(e => console.warn("Audio play blocked (interaction required)", e));
       } catch (e) {
           console.error("Audio error", e);
       }
@@ -448,17 +457,41 @@ const App: React.FC = () => {
                     state: 'incoming', type: payload.type, partnerId: callerProfile.id,
                     partnerName: callerProfile.full_name, partnerAvatar: callerProfile.avatar_url, isCaller: false
                 });
-                try {
-                    const audio = new Audio(CALL_RINGTONE);
-                    audio.loop = true;
-                    (window as any).callRingtone = audio;
-                    await audio.play().catch(e => console.warn(e));
-                } catch(e) {}
+                
+                // Play Ringtone using Ref
+                if (ringtoneAudioRef.current) {
+                    try {
+                        ringtoneAudioRef.current.currentTime = 0;
+                        ringtoneAudioRef.current.volume = 0.7;
+                        const promise = ringtoneAudioRef.current.play();
+                        if (promise !== undefined) {
+                            promise.catch(e => console.warn("Ringtone blocked", e));
+                        }
+                    } catch(e) {}
+                }
             }
         })
         .subscribe();
-    return () => { supabase.removeChannel(mySignalingChannel); if ((window as any).callRingtone) (window as any).callRingtone.pause(); };
+    
+    return () => { 
+        supabase.removeChannel(mySignalingChannel); 
+        // Stop Ringtone on cleanup
+        if (ringtoneAudioRef.current) {
+            ringtoneAudioRef.current.pause();
+            ringtoneAudioRef.current.currentTime = 0;
+        }
+    };
   }, [appState, userProfile.id]);
+
+  // Handle Call End / Answer (Stop Ringtone)
+  useEffect(() => {
+      if (!callData || callData.state === 'connected' || callData.state === 'ended') {
+          if (ringtoneAudioRef.current) {
+              ringtoneAudioRef.current.pause();
+              ringtoneAudioRef.current.currentTime = 0;
+          }
+      }
+  }, [callData]);
 
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id) return;
@@ -658,18 +691,14 @@ const App: React.FC = () => {
               }
 
               // 2. Admin Status Changed
-              if (!currentProfile.isAdmin && updatedProfile.is_admin) {
+              const wasAdmin = !!currentProfile.isAdmin;
+              const isNowAdmin = !!updatedProfile.is_admin;
+
+              if (!wasAdmin && isNowAdmin) {
                   showToast("Вам выданы права Администратора. Доступ к терминалу открыт.", "success");
                   playNotificationSound();
-              } else if (currentProfile.isAdmin && !updatedProfile.is_admin) {
+              } else if (wasAdmin && !isNowAdmin) {
                   showToast("Права Администратора отозваны.", "error");
-              }
-
-              // 3. Username Changed by Admin (Prevent spam on self-update by comparing with local state)
-              if (currentProfile.username && 
-                  updatedProfile.username && 
-                  currentProfile.username !== updatedProfile.username) {
-                  showToast(`Ваш юзернейм изменен на @${updatedProfile.username}`, "info");
               }
 
               // Update self state
@@ -796,6 +825,10 @@ const App: React.FC = () => {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
+      {/* NATIVE AUDIO ELEMENTS FOR RELIABLE PLAYBACK */}
+      <audio ref={notificationAudioRef} className="hidden" preload="auto" />
+      <audio ref={ringtoneAudioRef} src={CALL_RINGTONE} loop className="hidden" preload="auto" />
+
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
       {/* Disable pulsing blob in lite mode to save GPU */}
       {settings.pulsing && !settings.liteMode && <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />}
