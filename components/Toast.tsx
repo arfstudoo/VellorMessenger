@@ -1,7 +1,10 @@
 
+
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Bell, Info, CheckCircle, AlertTriangle, MessageCircle } from 'lucide-react';
+
+const MDiv = motion.div as any;
 
 export type ToastType = 'info' | 'success' | 'warning' | 'error';
 
@@ -42,7 +45,7 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'info', isVisible,
   return (
     <AnimatePresence>
       {isVisible && (
-        <motion.div
+        <MDiv
           className="fixed top-0 left-1/2 -translate-x-1/2 z-[200] w-[90%] max-w-sm pointer-events-none"
           variants={variants}
           initial="hidden"
@@ -94,7 +97,7 @@ export const Toast: React.FC<ToastProps> = ({ message, type = 'info', isVisible,
               <X size={18} />
             </button>
           </div>
-        </motion.div>
+        </MDiv>
       )}
     </AnimatePresence>
   );

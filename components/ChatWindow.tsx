@@ -866,7 +866,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
              {/* PENDING FILE PREVIEW OVERLAY */}
              {pendingFile && (
-                 <motion.div 
+                 <MDiv 
                     initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
                     className="absolute -top-32 left-4 w-48 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20"
                  >
@@ -887,7 +887,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                          </button>
                      </div>
                      <p className="text-[10px] text-white/50 truncate px-1 font-mono">{pendingFile.file.name}</p>
-                 </motion.div>
+                 </MDiv>
              )}
 
              <div className="flex items-end gap-3 max-w-5xl mx-auto relative">

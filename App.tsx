@@ -88,7 +88,8 @@ const THEMES_CONFIG = {
   }
 };
 
-const CALL_RINGTONE = "https://cdn.freesound.org/previews/344/344153_5723683-lq.mp3"; 
+// Use local file for ringtone. Ensure 'ringtone.mp3' exists in your public folder.
+const CALL_RINGTONE = "/ringtone.mp3"; 
 
 const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (With Auto-Admin Fix)
 -- Run in Supabase SQL Editor

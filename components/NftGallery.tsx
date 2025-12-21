@@ -1,10 +1,16 @@
 
+
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Gem, X, Info, ExternalLink, Share2, Sparkles, Flame, Zap, Trophy, ArrowRight, Lock, Clock, Ticket } from 'lucide-react';
 import { CosmicPot } from './nfts/CosmicPot';
 import { PrimeWatch } from './nfts/PrimeWatch';
 import { CipherBlade } from './nfts/CipherBlade';
+
+const MDiv = motion.div as any;
+const MH2 = motion.h2 as any;
+const MP = motion.p as any;
+const MA = motion.a as any;
 
 interface NftItem {
   id: string;
@@ -77,14 +83,14 @@ export const NftGallery: React.FC = () => {
          <div className="absolute inset-0 opacity-40 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]" />
          
          {/* Animated Background Elements */}
-         <motion.div 
+         <MDiv 
             animate={{ opacity: [0.1, 0.3, 0.1], scale: [1, 1.2, 1], rotate: [0, 10, 0] }}
             transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
             className="absolute -top-20 -right-20 w-[400px] h-[400px] bg-fuchsia-600/20 blur-[100px] rounded-full mix-blend-screen"
          />
 
          <div className="absolute inset-0 flex flex-col justify-end p-8 z-10">
-            <motion.div 
+            <MDiv 
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
               className="flex items-center gap-3 mb-2"
             >
@@ -92,21 +98,21 @@ export const NftGallery: React.FC = () => {
                     <Gem className="text-fuchsia-400" size={20} />
                 </div>
                 <span className="text-[10px] font-bold text-fuchsia-400/80 uppercase tracking-[0.3em]">Season 1: PROLOGUE</span>
-            </motion.div>
+            </MDiv>
             
-            <motion.h2 
+            <MH2 
               initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
               className="text-3xl font-black uppercase tracking-widest text-white leading-none mb-2"
             >
               NFT Collection
-            </motion.h2>
+            </MH2>
             
-            <motion.p 
+            <MP 
               initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} transition={{ delay: 0.3 }}
               className="text-white/60 text-xs max-w-[300px] font-medium leading-relaxed"
             >
                 Собирайте цифровые NFT.
-            </motion.p>
+            </MP>
          </div>
          
          {/* Decorative Sparkles */}
@@ -118,7 +124,7 @@ export const NftGallery: React.FC = () => {
          
          {/* Real NFTs */}
          {NFT_COLLECTION.map((nft, index) => (
-             <motion.div
+             <MDiv
                key={nft.id}
                initial={{ opacity: 0, y: 20 }}
                animate={{ opacity: 1, y: 0 }}
@@ -148,11 +154,11 @@ export const NftGallery: React.FC = () => {
                         <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-500 animate-pulse shadow-[0_0_5px_currentColor]" />
                     </div>
                 </div>
-             </motion.div>
+             </MDiv>
          ))}
 
          {/* Vellor Awards Reference Card (Easter Egg) - NOW AT THE END & REDESIGNED */}
-         <motion.a 
+         <MA 
             href="https://vellorawards.vercel.app/" 
             target="_blank" 
             rel="noopener noreferrer"
@@ -193,32 +199,32 @@ export const NftGallery: React.FC = () => {
             <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity transform translate-y-1 group-hover:translate-y-0">
                 <ExternalLink size={14} className="text-amber-200" />
             </div>
-         </motion.a>
+         </MA>
       </div>
 
       {/* Detail Modal Overlay */}
       <AnimatePresence>
         {selectedNft && (
-            <motion.div 
+            <MDiv 
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-6"
                 onClick={() => setSelectedNft(null)}
             >
-                <motion.div 
+                <MDiv 
                     initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 30 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e: any) => e.stopPropagation()}
                     className="w-full max-w-md bg-[#0a0a0a] border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl relative flex flex-col max-h-[85vh]"
                 >
                     {/* Full View Area */}
                     <div className="aspect-square bg-[radial-gradient(circle_at_center,#1a1a1a_0%,#000000_100%)] relative flex items-center justify-center p-0 border-b border-white/10 overflow-hidden">
                          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-20" />
-                         <motion.div 
+                         <MDiv 
                             initial={{ scale: 0.8, opacity: 0, rotate: -10 }} animate={{ scale: 1, opacity: 1, rotate: 0 }} transition={{ delay: 0.2, duration: 0.6 }}
                             className="w-full h-full filter drop-shadow-[0_0_60px_rgba(168,85,247,0.25)] z-10"
                          >
                             {selectedNft.component}
-                         </motion.div>
+                         </MDiv>
                          <button onClick={() => setSelectedNft(null)} className="absolute top-4 right-4 p-3 bg-black/50 rounded-full text-white hover:bg-white/20 transition-colors z-20 border border-white/10 backdrop-blur-md"><X size={20}/></button>
                          <div className="absolute bottom-6 left-6 z-20">
                              <RarityBadge rarity={selectedNft.rarity} />
@@ -257,8 +263,8 @@ export const NftGallery: React.FC = () => {
                             </button>
                         </div>
                     </div>
-                </motion.div>
-            </motion.div>
+                </MDiv>
+            </MDiv>
         )}
       </AnimatePresence>
     </div>
