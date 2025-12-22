@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy } from 'lucide-react';
-import { Chat, Message, MessageType, CallType, UserStatus } from '../types';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus } from 'lucide-react';
+import { Chat, Message, MessageType, CallType, UserStatus, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 
@@ -20,7 +20,7 @@ interface ChatWindowProps {
   onSendMessage: (chatId: string, text: string, type?: MessageType, mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => void;
   markAsRead: (chatId: string) => void;
   onStartCall: (chatId: string, type: CallType) => void;
-  isPartnerTyping: boolean;
+  isPartnerTyping: boolean; // Deprecated, use typingUserNames
   onSendTypingSignal: (isTyping: boolean) => void;
   wallpaper?: string;
   onEditMessage: (id: string, text: string) => void;
@@ -29,12 +29,13 @@ interface ChatWindowProps {
   onlineUsers: Map<string, UserStatus>;
   showToast: (msg: string, type: ToastType) => void;
   onLeaveGroup?: (groupId: string) => void;
+  onDeleteGroup?: (groupId: string) => void;
+  typingUserNames?: string[]; // New Prop
 }
 
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
 
-// --- OPTIMIZED SUB-COMPONENTS ---
-
+// ... (Sub-components: MessageStatus, AudioPlayer, SwipeableMessage, MessageItem - REMAIN THE SAME)
 const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = React.memo(({ isRead, isOwn }) => {
   if (!isOwn) return null;
   return (
@@ -104,28 +105,11 @@ const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactN
     );
 };
 
-// --- MEMOIZED MESSAGE ITEM (CRITICAL FOR PERFORMANCE) ---
-interface MessageItemProps {
-    msg: Message;
-    isMe: boolean;
-    chatUser: any;
-    groupMembers: any[];
-    myId: string;
-    onContextMenu: (e: React.MouseEvent, msg: Message) => void;
-    onReply: (msg: Message) => void;
-    scrollToMessage: (id: string) => void;
-    setZoomedImage: (url: string) => void;
-    chatMessages: Message[]; // Needed to find reply parent
-    handleToggleReaction: (msgId: string, emoji: string) => void;
-}
-
-const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction }: MessageItemProps) => {
-    
-    // Helper to get sender info (memoized inside component logic)
+const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction }: any) => {
     const getSenderInfo = (senderId: string) => {
         if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
         if (chatUser.isGroup && groupMembers.length > 0) {
-            const member = groupMembers.find(m => m.user.id === senderId)?.user;
+            const member = groupMembers.find((m: any) => m.user.id === senderId)?.user;
             if (member) return member;
         }
         if (!chatUser.isGroup && senderId === chatUser.id) return chatUser;
@@ -133,10 +117,10 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
     };
 
     const senderInfo = getSenderInfo(msg.senderId);
-    const replyParent = msg.replyToId ? chatMessages.find(m => m.id === msg.replyToId) : null;
+    const replyParent = msg.replyToId ? chatMessages.find((m: any) => m.id === msg.replyToId) : null;
     const replySender = replyParent ? getSenderInfo(replyParent.senderId) : null;
 
-    const reactionsGrouped = (msg.reactions || []).reduce((acc, r) => {
+    const reactionsGrouped = (msg.reactions || []).reduce((acc: any, r: any) => {
         if (!acc[r.emoji]) acc[r.emoji] = { count: 0, hasReacted: false };
         acc[r.emoji].count += 1;
         if (r.senderId === myId) acc[r.emoji].hasReacted = true;
@@ -218,7 +202,6 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
         </div>
     );
 }, (prev, next) => {
-    // Custom comparison for React.memo to optimize re-renders
     return (
         prev.msg.id === next.msg.id &&
         prev.msg.isRead === next.msg.isRead &&
@@ -226,15 +209,13 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
         prev.msg.isPinned === next.msg.isPinned &&
         prev.msg.isEdited === next.msg.isEdited &&
         prev.msg.text === next.msg.text &&
-        // Also check if group members loaded to update avatar
         prev.groupMembers.length === next.groupMembers.length
     );
 });
 
-
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
-    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup
+    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup, onDeleteGroup, typingUserNames = []
 }) => {
   const [inputText, setInputText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -251,11 +232,15 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [pendingFile, setPendingFile] = useState<{file: File, url: string, type: MessageType} | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   
-  // Context Menu State
+  // Add Member State
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [memberSearchQuery, setMemberSearchQuery] = useState("");
+  const [memberSearchResults, setMemberSearchResults] = useState<UserType[]>([]);
+  const [isSearchingMembers, setIsSearchingMembers] = useState(false);
+
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
   const [uploadingType, setUploadingType] = useState<MessageType | null>(null);
 
-  // SCROLLING LOGIC
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -285,7 +270,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   useEffect(() => {
       markAsRead(chat.id);
-      // SMART SCROLL: Only scroll if we were already at bottom or it's the first load
       if (isAtBottom) {
           scrollToBottom(chat.messages.length > 20 ? 'smooth' : 'auto');
       }
@@ -301,14 +285,88 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 if (profiles) {
                     setGroupMembers(members.map(m => {
                         const p = profiles.find(pr => pr.id === m.user_id);
-                        return { ...m, user: { id: p?.id || m.user_id, name: p?.full_name || 'Unknown', avatar: p?.avatar_url || '', username: p?.username, isVerified: p?.is_verified, bio: p?.bio, email: p?.email, created_at: p?.created_at } };
+                        return { 
+                            ...m, 
+                            user: { 
+                                id: p?.id || m.user_id, 
+                                name: p?.full_name || 'Unknown', 
+                                avatar: p?.avatar_url || '', 
+                                username: p?.username, 
+                                isVerified: p?.is_verified, 
+                                bio: p?.bio, 
+                                email: p?.email, 
+                                created_at: p?.created_at 
+                            } 
+                        };
                     }));
                 }
             }
         };
         fetchMembers();
     }
-  }, [chat.id, chat.user.isGroup]);
+  }, [chat.id, chat.user.isGroup, showUserInfo]); // Refetch on open info
+
+  // Member Search Effect
+  useEffect(() => {
+      if (!isAddingMember || !memberSearchQuery.trim()) {
+          setMemberSearchResults([]);
+          return;
+      }
+      
+      const searchUsers = async () => {
+          setIsSearchingMembers(true);
+          const { data, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .or(`username.ilike.%${memberSearchQuery}%,full_name.ilike.%${memberSearchQuery}%`)
+              .limit(10);
+          
+          if (!error && data) {
+              const mappedUsers: UserType[] = data.map(p => ({
+                  id: p.id,
+                  name: p.full_name,
+                  username: p.username,
+                  avatar: p.avatar_url,
+                  status: p.status || 'offline',
+                  isVerified: p.is_verified
+              }));
+              // Filter out existing members
+              setMemberSearchResults(mappedUsers.filter(u => !groupMembers.some(gm => gm.user.id === u.id)));
+          }
+          setIsSearchingMembers(false);
+      };
+      
+      const timeout = setTimeout(searchUsers, 500);
+      return () => clearTimeout(timeout);
+  }, [memberSearchQuery, isAddingMember, groupMembers]);
+
+  const handleAddMember = async (user: UserType) => {
+      try {
+          const { error } = await supabase.from('group_members').insert({
+              group_id: chat.id,
+              user_id: user.id,
+              is_admin: false
+          });
+          
+          if (error) throw error;
+          
+          showToast(`${user.name} добавлен в группу`, "success");
+          onSendMessage(chat.id, `добавил(а) ${user.name}`, 'system');
+          setIsAddingMember(false);
+          setMemberSearchQuery("");
+          
+          // Optimistically update list
+          const newMember = { 
+              group_id: chat.id, 
+              user_id: user.id, 
+              is_admin: false, 
+              user: user 
+          };
+          setGroupMembers(prev => [...prev, newMember]);
+      } catch(e) {
+          showToast("Ошибка добавления участника", "error");
+      }
+  };
 
   useEffect(() => {
       const handleClick = () => setContextMenu(null);
@@ -316,12 +374,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  // Optimized Context Menu Handler
   const handleContextMenu = useCallback((e: React.MouseEvent, message: Message) => {
       e.preventDefault();
       let x = e.clientX;
       let y = e.clientY;
-      // Boundary checks
       if (x > window.innerWidth - 200) x = window.innerWidth - 210;
       if (y > window.innerHeight - 300) y = window.innerHeight - 310;
       setContextMenu({ x, y, message });
@@ -390,6 +446,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     typingTimeoutRef.current = setTimeout(() => { onSendTypingSignal(false); }, 2000);
   };
 
+  // ... (Paste, Recording, File Upload Handlers - unchanged) ...
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (e.clipboardData && e.clipboardData.files.length > 0) {
         e.preventDefault();
@@ -446,8 +503,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
   }, []);
 
-  const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
-  const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadingType) return;
@@ -456,7 +511,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setUploadingType(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
+
+  const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
+  const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
+
+  // Logic for Typing Text
+  const typingText = typingUserNames.length > 0
+      ? (typingUserNames.length === 1 
+          ? `${typingUserNames[0]} печатает...` 
+          : `${typingUserNames.join(', ')} печатают...`)
+      : (chat.user.isGroup ? 'группа' : (realtimeStatus === 'online' ? 'в сети' : 'был(а) недавно'));
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
@@ -479,10 +544,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {isSuperAdmin && <Crown size={12} className="text-yellow-400 fill-yellow-400" />}
                         {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     </h3>
-                    {isPartnerTyping ? (
-                        <p className="text-[10px] text-vellor-red font-bold animate-pulse">печатает...</p>
+                    {typingUserNames.length > 0 ? (
+                        <p className="text-[10px] text-vellor-red font-bold animate-pulse truncate max-w-[200px]">{typingText}</p>
                     ) : (
-                        <p className="text-[10px] font-medium text-white/40">{chat.user.isGroup ? 'группа' : (realtimeStatus === 'online' ? 'в сети' : 'был(а) недавно')}</p>
+                        <p className="text-[10px] font-medium text-white/40">{typingText}</p>
                     )}
                 </div>
             </div>
@@ -493,6 +558,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
         </div>
 
+        {/* ... (Pinned Message, Messages List, Scroll Button - unchanged logic, just moved code block) ... */}
         <AnimatePresence>
             {pinnedMessage && (
                 <MDiv onClick={() => scrollToMessage(pinnedMessage.id)} initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20">
@@ -503,26 +569,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        <div 
-            ref={messagesContainerRef} 
-            onScroll={handleScroll}
-            className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth"
-        >
+        <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth">
             {chat.messages.map((msg) => (
-                <MessageItem 
-                    key={msg.id}
-                    msg={msg}
-                    isMe={msg.senderId === 'me' || msg.senderId === myId}
-                    chatUser={chat.user}
-                    groupMembers={groupMembers}
-                    myId={myId}
-                    onContextMenu={handleContextMenu}
-                    onReply={(m) => setReplyingTo(m)}
-                    scrollToMessage={scrollToMessage}
-                    setZoomedImage={setZoomedImage}
-                    chatMessages={chat.messages}
-                    handleToggleReaction={handleToggleReaction}
-                />
+                <MessageItem key={msg.id} msg={msg} isMe={msg.senderId === 'me' || msg.senderId === myId} chatUser={chat.user} groupMembers={groupMembers} myId={myId} onContextMenu={handleContextMenu} onReply={(m: any) => setReplyingTo(m)} scrollToMessage={scrollToMessage} setZoomedImage={setZoomedImage} chatMessages={chat.messages} handleToggleReaction={handleToggleReaction} />
             ))}
         </div>
         
@@ -532,19 +581,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
         )}
 
+        {/* ... (Context Menu, Zoomed Image - unchanged) ... */}
         <AnimatePresence>
             {contextMenu && (
                 <MDiv initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-[100] w-60 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1" onClick={(e: any) => e.stopPropagation()}>
                     <div className="p-2 bg-white/5 rounded-xl mb-1 flex justify-between gap-1">
                         {QUICK_REACTIONS.map(emoji => <MButton key={emoji} whileHover={{ scale: 1.2 }} onClick={() => handleToggleReaction(contextMenu.message.id, emoji)} className="text-xl p-1">{emoji}</MButton>)}
                     </div>
-                    
                     {contextMenu.message.type === 'text' && (
                          <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
                             <Copy size={14} className="text-white/60" /> Копировать
                         </button>
                     )}
-
                     <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
                         <Reply size={14} className="text-white/60" /> Ответить
                     </button>
@@ -574,8 +622,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
                     <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
-                        <button onClick={() => setShowUserInfo(false)} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
+                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); }} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
                     </div>
+                    
+                    {/* INFO CONTENT */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center">
                         <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl group">
                             <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
@@ -590,27 +640,95 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             </h1>
                             <p className="text-sm text-white/40 font-mono">@{chat.user.username}</p>
                         </div>
-                        <div className="w-full space-y-3">
-                            <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
-                                <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2"><Info size={12}/> О себе</h4>
-                                <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">{chat.user.bio || 'Информация не заполнена.'}</p>
+                        
+                        {/* MEMBER SEARCH VIEW */}
+                        {isAddingMember ? (
+                            <MDiv initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-4">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <button onClick={() => setIsAddingMember(false)} className="p-1.5 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><ArrowLeft size={16}/></button>
+                                    <h4 className="text-xs font-bold uppercase tracking-widest text-white">Добавить участника</h4>
+                                </div>
+                                <div className="relative group">
+                                    <Search className="absolute left-3 top-3 text-white/30" size={16} />
+                                    <input autoFocus value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} placeholder="Поиск по юзернейму..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all" />
+                                </div>
+                                <div className="space-y-2">
+                                    {isSearchingMembers ? <div className="flex justify-center p-4"><Loader2 className="animate-spin text-white/30" /></div> : 
+                                     memberSearchResults.map(user => (
+                                        <button key={user.id} onClick={() => handleAddMember(user)} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left">
+                                            <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden shrink-0"><img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
+                                            <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate text-white">{user.name}</p><p className="text-[10px] opacity-40 truncate">@{user.username}</p></div>
+                                            <div className="p-1.5 bg-vellor-red/20 text-vellor-red rounded-full"><Plus size={14}/></div>
+                                        </button>
+                                    ))}
+                                    {!isSearchingMembers && memberSearchQuery && memberSearchResults.length === 0 && <p className="text-center text-[10px] opacity-30">Никого не найдено</p>}
+                                </div>
+                            </MDiv>
+                        ) : (
+                            // STANDARD INFO VIEW
+                            <div className="w-full space-y-3">
+                                <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                    <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2"><Info size={12}/> О себе</h4>
+                                    <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">{chat.user.bio || 'Информация не заполнена.'}</p>
+                                </div>
+                                
+                                {chat.user.isGroup && (
+                                    <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-4">
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-2 text-white/50"><Users size={14}/><span className="text-[10px] font-bold uppercase tracking-wider">Участники ({groupMembers.length})</span></div>
+                                            <button onClick={() => setIsAddingMember(true)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/60 hover:text-vellor-red transition-colors" title="Добавить участника"><Plus size={14}/></button>
+                                        </div>
+                                        <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                                            {groupMembers.map(member => {
+                                                const status = onlineUsers.get(member.user.id) || 'offline';
+                                                return (
+                                                    <div key={member.user.id} className="flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-xl transition-colors">
+                                                        <div className="relative">
+                                                            <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden"><img src={member.user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
+                                                            <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-black rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`} />
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-xs font-bold text-white truncate flex items-center gap-1">
+                                                                {member.user.name}
+                                                                {member.is_admin && <Crown size={10} className="text-yellow-500 fill-yellow-500" />}
+                                                            </p>
+                                                            <p className="text-[9px] opacity-40 truncate">@{member.user.username}</p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
+                                    <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
+                                    <div className="flex items-center gap-3 opacity-70"><Calendar size={16} /><span className="text-xs">{chat.user.created_at ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` : 'Дата регистрации скрыта'}</span></div>
+                                    <div className="flex items-center gap-3 opacity-70"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
+                                </div>
+                                {chat.user.isGroup && (
+                                    <>
+                                        {onLeaveGroup && (
+                                            <button onClick={() => onLeaveGroup(chat.id)} className="w-full py-4 mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                                <LogOut size={16} /> Покинуть группу
+                                            </button>
+                                        )}
+                                        {/* DELETE GROUP BUTTON (Only for owner) */}
+                                        {onDeleteGroup && chat.ownerId === myId && (
+                                            <button onClick={() => onDeleteGroup(chat.id)} className="w-full py-4 bg-black/40 border border-red-500 rounded-2xl text-red-500 font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+                                                <Trash2 size={16} /> Удалить группу
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                             </div>
-                            <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
-                                <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
-                                <div className="flex items-center gap-3 opacity-70"><Calendar size={16} /><span className="text-xs">{chat.user.created_at ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` : 'Дата регистрации скрыта'}</span></div>
-                                <div className="flex items-center gap-3 opacity-70"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
-                            </div>
-                            {chat.user.isGroup && onLeaveGroup && (
-                                <button onClick={() => onLeaveGroup(chat.id)} className="w-full py-4 mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
-                                    <LogOut size={16} /> Покинуть группу
-                                </button>
-                            )}
-                        </div>
+                        )}
                     </div>
                 </MDiv>
             )}
         </AnimatePresence>
 
+        {/* ... (Bottom Input area - unchanged) ... */}
         <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-safe-bottom">
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">

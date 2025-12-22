@@ -83,6 +83,7 @@ export interface Chat {
   lastMessage: Message;
   isPinned?: boolean; 
   isMuted?: boolean;
+  ownerId?: string; // Added: ID of the group creator
 }
 
 export type CallType = 'audio' | 'video';

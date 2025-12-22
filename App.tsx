@@ -126,7 +126,6 @@ DECLARE
   result json;
 BEGIN
   -- Fetch groups, messages, and partner profiles in one go logic
-  -- Note: We return raw arrays to be processed by client for flexibility
   SELECT json_build_object(
     'groups', (
       SELECT COALESCE(json_agg(g_info), '[]'::json)
@@ -200,7 +199,9 @@ const App: React.FC = () => {
   const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [tempChatUser, setTempChatUser] = useState<User | null>(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
+  
+  // CHANGED: Stores an array of names for each chat
+  const [typingUsers, setTypingUsers] = useState<Record<string, string[]>>({});
   
   // Theme state with localStorage persistence
   const [currentTheme, setCurrentTheme] = useState<keyof typeof THEMES_CONFIG>(() => {
@@ -415,7 +416,7 @@ const App: React.FC = () => {
     localStorage.setItem('vellor_theme', currentTheme);
   }, [currentTheme]);
 
-  // --- PRESENCE LOGIC ---
+  // --- PRESENCE LOGIC (FIXED) ---
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
 
@@ -427,15 +428,21 @@ const App: React.FC = () => {
 
     channel
       .on('presence', { event: 'sync' }, () => {
+        // Sync is the source of truth
         const state = channel.presenceState();
         const newOnlineMap = new Map<string, UserStatus>();
+        
         Object.entries(state).forEach(([key, value]) => {
             const presenceData = value[0] as any;
-            newOnlineMap.set(key, presenceData?.status || 'online');
+            // Ensure we don't accidentally mark ourselves (though not harmful in Map)
+            if (key !== userProfile.id) {
+                newOnlineMap.set(key, presenceData?.status || 'online');
+            }
         });
         setOnlineUsers(newOnlineMap);
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
+         if (key === userProfile.id) return;
          setOnlineUsers(prev => {
              const next = new Map(prev);
              next.set(key, (newPresences[0] as any)?.status || 'online');
@@ -443,6 +450,7 @@ const App: React.FC = () => {
          });
       })
       .on('presence', { event: 'leave' }, ({ key }) => {
+         // Strict remove on leave
          setOnlineUsers(prev => {
              const next = new Map(prev);
              next.delete(key);
@@ -457,6 +465,43 @@ const App: React.FC = () => {
 
     return () => { supabase.removeChannel(channel); presenceChannelRef.current = null; };
   }, [appState, userProfile.id, isDatabaseError]);
+
+  // --- TYPING BROADCAST LISTENER ---
+  useEffect(() => {
+      if (appState !== 'app' || !userProfile.id) return;
+      const channel = supabase.channel('global_typing');
+      
+      channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
+          if (payload.userId === userProfile.id) return; // Ignore self
+          
+          setTypingUsers(prev => {
+              const currentList = prev[payload.chatId] || [];
+              let newList = [...currentList];
+              
+              if (payload.isTyping) {
+                  if (!newList.includes(payload.name)) {
+                      newList.push(payload.name);
+                  }
+              } else {
+                  newList = newList.filter(name => name !== payload.name);
+              }
+              
+              return { ...prev, [payload.chatId]: newList };
+          });
+      }).subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+  }, [appState, userProfile.id]);
+
+  const handleSendTypingSignal = async (isTyping: boolean) => {
+      if (!activeChatId) return;
+      // Optimistic update for self? No, standard is not to show self.
+      await supabase.channel('global_typing').send({ 
+          type: 'broadcast', 
+          event: 'typing', 
+          payload: { chatId: activeChatId, userId: userProfile.id, name: userProfile.name, isTyping } 
+      });
+  };
 
   // --- SIGNALING ---
   useEffect(() => {
@@ -524,7 +569,8 @@ const App: React.FC = () => {
                 id: g.id,
                 user: { id: g.id, name: g.name, avatar: g.avatar_url, status: 'online', isGroup: true, username: 'group' },
                 messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
-                isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false
+                isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
+                ownerId: g.created_by // Map created_by to ownerId
             });
         });
 
@@ -633,7 +679,7 @@ const App: React.FC = () => {
              }
              
              updatedChats[chatIndex] = chat;
-             // Maintain sort order: Pinned first, then date
+             // Strict sort every time new message arrives
              return updatedChats.sort((a,b) => {
                  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                  return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
@@ -684,10 +730,15 @@ const App: React.FC = () => {
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, handleRealtimePayload);
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload: any) => {
         // Reload if I am added or removed from a group, or someone leaves my group
-        if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id || (payload.old && chatsRef.current.some(c => c.id === payload.old.group_id))) {
-            fetchChats();
-        }
+        // Just reload, easier than patching complex state
+        fetchChats();
     });
+    // Add listener for group deletion
+    channel.on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'groups' }, (payload: any) => {
+        setChats(prev => prev.filter(c => c.id !== payload.old.id));
+        if (activeChatId === payload.old.id) setActiveChatId(null);
+    });
+
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimePayload);
     // Listen for Chat Setting changes (Pin/Mute) from other devices
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_settings' }, (payload: any) => {
@@ -696,7 +747,7 @@ const App: React.FC = () => {
 
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats]);
+  }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats, activeChatId]);
 
   const sendMessage = async (chatId: string, text: string, type: MessageType = 'text', mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => {
     const isGroup = chats.find(c => c.id === chatId)?.user.isGroup;
@@ -722,7 +773,7 @@ const App: React.FC = () => {
       await supabase.channel(`signaling:${chatId}`).send({ type: 'broadcast', event: 'call-request', payload: { callerId: userProfile.id, type } });
   };
 
-  // --- CHAT ACTIONS (Pin / Mute / Leave) ---
+  // --- CHAT ACTIONS (Pin / Mute / Delete Local) ---
   const handleChatAction = async (chatId: string, action: 'pin' | 'mute' | 'delete') => {
       if (action === 'delete') {
           // Local Hide (For real delete, logic depends on requirements)
@@ -737,14 +788,18 @@ const App: React.FC = () => {
       const isPinned = action === 'pin' ? !chat.isPinned : chat.isPinned;
       const isMuted = action === 'mute' ? !chat.isMuted : chat.isMuted;
 
-      // Optimistic Update
-      setChats(prev => prev.map(c => {
-          if (c.id === chatId) return { ...c, isPinned, isMuted };
-          return c;
-      }).sort((a,b) => {
-          if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
-          return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
-      }));
+      // Optimistic Update WITH SORTING
+      setChats(prev => {
+          const mapped = prev.map(c => {
+              if (c.id === chatId) return { ...c, isPinned, isMuted };
+              return c;
+          });
+          // Sort Pinned > Date
+          return mapped.sort((a,b) => {
+              if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+              return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
+          });
+      });
 
       // DB Upsert
       const { error } = await supabase.from('chat_settings').upsert({
@@ -760,6 +815,21 @@ const App: React.FC = () => {
           fetchChats(); // Revert on error
       } else {
           showToast(action === 'pin' ? (isPinned ? 'Чат закреплен' : 'Чат откреплен') : (isMuted ? 'Уведомления выключены' : 'Уведомления включены'), "success");
+      }
+  };
+
+  // --- DELETE GROUP (For Creators) ---
+  const handleDeleteGroup = async (groupId: string) => {
+      if (!confirm("Внимание! Вы удаляете группу. Это действие необратимо и удалит чат у всех участников.")) return;
+      
+      const { error } = await supabase.from('groups').delete().eq('id', groupId);
+      if (error) {
+          console.error("Delete Group Error", error);
+          showToast("Ошибка удаления группы", "error");
+      } else {
+          showToast("Группа удалена", "success");
+          setChats(prev => prev.filter(c => c.id !== groupId));
+          setActiveChatId(null);
       }
   };
 
@@ -879,7 +949,7 @@ const App: React.FC = () => {
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
-                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={handleLeaveGroup} />
+                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={handleSendTypingSignal} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={handleLeaveGroup} onDeleteGroup={handleDeleteGroup} typingUserNames={typingUsers[activeChat.id] || []} />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}
