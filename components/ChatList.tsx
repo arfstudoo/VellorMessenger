@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser, VolumeX, SmartphoneCharging, LayoutDashboard, Radio, MessageCircle, BarChart2, Ban, Unlock, FileText, ArrowLeft, History, Database, UserX, Skull, Volume1, CheckCircle } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser, VolumeX, SmartphoneCharging, LayoutDashboard, Radio, MessageCircle, BarChart2, Ban, Unlock, FileText, ArrowLeft, History, Database, UserX, Skull, Volume1, CheckCircle, MapPin, Smile } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -477,6 +477,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     ) : (
                       chat.lastMessage?.type === 'audio' ? <span className="flex items-center gap-1"><Mic size={12}/> Голосовое</span> : 
                       chat.lastMessage?.type === 'image' ? <span className="flex items-center gap-1"><div className="w-3 h-3 bg-white/20 rounded-sm"/> Фотография</span> : 
+                      chat.lastMessage?.type === 'location' ? <span className="flex items-center gap-1"><MapPin size={12} className="text-vellor-red"/> Локация</span> :
                       chat.lastMessage?.text || (chat.user.isGroup ? 'Нет сообщений' : 'Начать общение')
                     )}
                   </div>
@@ -815,7 +816,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                                      <span className="text-sm font-bold text-white">Список изменений</span>
                                  </div>
                                  <div className="flex items-center gap-2">
-                                     <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v1.6</span>
+                                     <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v1.7</span>
                                      <ChevronRight size={16} className="text-white/20 group-hover:text-white/50"/>
                                  </div>
                              </button>
@@ -887,9 +888,38 @@ export const ChatList: React.FC<ChatListProps> = ({
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                          
-                         {/* VERSION 1.6 */}
+                         {/* VERSION 1.7 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-vellor-red shadow-[0_0_10px_currentColor]" />
+                             <div>
+                                 <h3 className="text-lg font-black text-white">Версия 1.7</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">Features & Fixes</p>
+                             </div>
+                             <div className="space-y-3">
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-blue-400 mb-2 flex items-center gap-2"><MapPin size={14}/> Geolocation</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Добавлена возможность отправки геопозиции через Яндекс.Карты.
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-yellow-400 mb-2 flex items-center gap-2"><Smile size={14}/> Emojis Fixed</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Исправлена панель смайликов. Теперь можно выбирать эмодзи из списка.
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-green-400 mb-2 flex items-center gap-2"><Phone size={14}/> Calls & Mobile</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Исправлен звук в звонках и проблемы с воспроизведением на iPhone (WebRTC). Демонстрация экрана отключена на мобильных.
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* VERSION 1.6 */}
+                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
+                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div>
                                  <h3 className="text-lg font-black text-white">Версия 1.6</h3>
                                  <p className="text-[10px] text-white/40 font-mono">Mobile Patch</p>
@@ -899,23 +929,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                                      <h4 className="text-xs font-bold text-green-400 mb-2 flex items-center gap-2"><SmartphoneCharging size={14}/> Mobile Fixes</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
                                          Исправлена проблема с отправкой изображений на мобильных устройствах. Улучшена работа клавиатуры.
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-
-                         {/* VERSION 1.5 */}
-                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
-                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div>
-                                 <h3 className="text-lg font-black text-white">Версия 1.5</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Stability</p>
-                             </div>
-                             <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><CheckCircle size={14}/> Stability & Calls</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Исправлены звонки, обновление аватара и уведомления.
                                      </p>
                                  </div>
                              </div>

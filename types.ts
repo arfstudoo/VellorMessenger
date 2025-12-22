@@ -49,7 +49,7 @@ export interface UserProfile {
   privacy_groups?: PrivacyValue;
 }
 
-export type MessageType = 'text' | 'image' | 'audio' | 'file' | 'system';
+export type MessageType = 'text' | 'image' | 'audio' | 'file' | 'system' | 'location';
 
 export interface Reaction {
   emoji: string;

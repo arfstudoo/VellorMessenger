@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus, Save } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus, Save, MapPin } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -11,6 +11,9 @@ const MImg = motion.img as any;
 const MButton = motion.button as any;
 const MSvg = motion.svg as any;
 const MPath = motion.path as any;
+
+// PLACEHOLDER API KEY - USER MUST REPLACE WITH THEIR OWN
+const YANDEX_API_KEY = 'YOUR_YANDEX_API_KEY'; 
 
 interface ChatWindowProps {
   chat: Chat;
@@ -35,8 +38,8 @@ interface ChatWindowProps {
 }
 
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
+const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
 
-// ... (Sub-components: MessageStatus, AudioPlayer, SwipeableMessage, MessageItem - REMAIN THE SAME)
 const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = React.memo(({ isRead, isOwn }) => {
   if (!isOwn) return null;
   return (
@@ -138,6 +141,15 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
         );
     }
 
+    // Parse location if it's a location type
+    let locationData = null;
+    if (msg.type === 'location' && msg.text) {
+        try {
+            const [lat, lon] = msg.text.split(',');
+            if (lat && lon) locationData = { lat, lon };
+        } catch (e) {}
+    }
+
     return (
         <div id={`msg-${msg.id}`} className="w-full">
             <SwipeableMessage isMe={isMe} onReply={() => onReply(msg)}>
@@ -178,6 +190,21 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
                                 <div className="p-2 bg-vellor-red/20 text-vellor-red rounded-lg"><FileText size={24}/></div>
                                 <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate max-w-[150px]">{msg.fileName}</p><p className="text-[9px] opacity-50 uppercase font-black">{msg.fileSize || 'FILE'}</p></div>
                                 <a href={msg.mediaUrl} download onClick={(e) => e.stopPropagation()} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><Download size={16}/></a>
+                            </div>
+                        )}
+                        {msg.type === 'location' && locationData && (
+                            <div className="flex flex-col gap-2 p-1">
+                                <a href={`https://yandex.ru/maps/?pt=${locationData.lon},${locationData.lat}&z=16&l=map`} target="_blank" rel="noreferrer" className="block relative rounded-xl overflow-hidden border border-white/10 shadow-lg group/map">
+                                    <img 
+                                        src={`https://static-maps.yandex.ru/1.x/?ll=${locationData.lon},${locationData.lat}&z=15&l=map&pt=${locationData.lon},${locationData.lat},pm2rdm&size=450,250&theme=dark`} 
+                                        alt="Location" 
+                                        className="w-full h-auto min-h-[150px] object-cover bg-gray-800"
+                                    />
+                                    <div className="absolute inset-0 bg-black/20 group-hover/map:bg-transparent transition-colors pointer-events-none" />
+                                    <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md text-[10px] text-white flex items-center gap-1">
+                                        <MapPin size={10} className="text-vellor-red" /> Геопозиция
+                                    </div>
+                                </a>
                             </div>
                         )}
                         {msg.type === 'text' && <p className="whitespace-pre-wrap leading-snug px-2 py-1 text-[15px]">{msg.text}</p>}
@@ -413,6 +440,40 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       await supabase.from('messages').update({ reactions: newReactions }).eq('id', messageId);
   }, [chat.messages, myId]);
 
+  const handleSendLocation = () => {
+      if (!navigator.geolocation) {
+          showToast("Геолокация не поддерживается вашим устройством", "error");
+          return;
+      }
+      
+      setShowAttachments(false);
+      showToast("Определение местоположения...", "info");
+
+      navigator.geolocation.getCurrentPosition(
+          (position) => {
+              const { latitude, longitude } = position.coords;
+              // Send location as text "lat,lon" with type "location"
+              // Media URL will be the static map image
+              const staticMapUrl = `https://static-maps.yandex.ru/1.x/?ll=${longitude},${latitude}&z=15&l=map&pt=${longitude},${latitude},pm2rdm&theme=dark`;
+              
+              onSendMessage(
+                  chat.id, 
+                  `${latitude},${longitude}`, 
+                  'location', 
+                  staticMapUrl,
+                  undefined, 
+                  undefined, 
+                  undefined, 
+                  replyingTo?.id
+              );
+          },
+          (error) => {
+              console.error("Location Error:", error);
+              showToast("Не удалось получить геопозицию. Разрешите доступ.", "error");
+          }
+      );
+  };
+
   const handleSend = async () => { 
     if (!inputText.trim() && !pendingFile) return; 
     if (isUploading) return;
@@ -539,6 +600,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       if (!onUpdateGroupInfo) return;
       onUpdateGroupInfo(chat.id, editDescText);
       setIsEditingDesc(false);
+  };
+
+  const addEmoji = (emoji: string) => {
+      setInputText(prev => prev + emoji);
   };
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
@@ -825,9 +890,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3 rounded-2xl transition-all active:scale-90 ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={20}/></button>
                         <AnimatePresence>
                             {showAttachments && (
-                                <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-14 left-0 w-40 bg-black/95 border border-white/10 p-1.5 rounded-2xl shadow-2xl overflow-hidden z-[100]">
+                                <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-14 left-0 w-48 bg-black/95 border border-white/10 p-1.5 rounded-2xl shadow-2xl overflow-hidden z-[100]">
                                     <button onClick={() => { setUploadingType('image'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
                                     <button onClick={() => { setUploadingType('file'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><FileText size={16} className="text-vellor-red"/> Файл</button>
+                                    <button onClick={handleSendLocation} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><MapPin size={16} className="text-vellor-red"/> Локация</button>
                                 </MDiv>
                             )}
                         </AnimatePresence>
@@ -843,6 +909,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             className="w-full bg-transparent text-white py-3 px-2 max-h-32 min-h-[44px] resize-none outline-none custom-scrollbar text-[15px] leading-snug" 
                         />
                         <button onClick={() => setShowEmojis(!showEmojis)} className={`p-2.5 mb-0.5 transition-colors active:scale-90 ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={20}/></button>
+                        
+                        {/* EMOJI PICKER OVERLAY */}
+                        <AnimatePresence>
+                            {showEmojis && (
+                                <MDiv 
+                                    initial={{ opacity: 0, scale: 0.95, y: 10 }} 
+                                    animate={{ opacity: 1, scale: 1, y: 0 }} 
+                                    exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                                    className="absolute bottom-12 right-0 w-full max-w-[320px] h-[300px] bg-black/95 border border-white/10 rounded-2xl shadow-2xl z-[100] flex flex-col overflow-hidden backdrop-blur-2xl"
+                                >
+                                    <div className="p-3 border-b border-white/5 flex justify-between items-center">
+                                        <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Emoji</span>
+                                        <button onClick={() => setShowEmojis(false)}><X size={14}/></button>
+                                    </div>
+                                    <div className="flex-1 overflow-y-auto custom-scrollbar p-2 grid grid-cols-7 gap-1">
+                                        {EMOJI_LIST.map((emoji, idx) => (
+                                            <button key={idx} onClick={() => addEmoji(emoji)} className="text-2xl p-2 hover:bg-white/10 rounded-lg transition-colors">{emoji}</button>
+                                        ))}
+                                    </div>
+                                </MDiv>
+                            )}
+                        </AnimatePresence>
                     </div>
 
                     {inputText.trim() || pendingFile ? (

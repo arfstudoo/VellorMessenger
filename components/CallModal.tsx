@@ -66,6 +66,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   const candidatesQueue = useRef<RTCIceCandidateInit[]>([]);
   
   const signalingChannelId = `signaling:${[myId, partnerId].sort().join('_')}`;
+  const isMobile = window.innerWidth < 768; // Check for mobile
 
   // Close context menu on click elsewhere
   useEffect(() => {
@@ -105,7 +106,8 @@ export const CallModal: React.FC<CallModalProps> = ({
   useEffect(() => {
     if (localVideoRef.current && localStream) {
         localVideoRef.current.srcObject = localStream;
-        localVideoRef.current.muted = true; // IMPORTANT: Always mute local video
+        localVideoRef.current.muted = true; // IMPORTANT: Always mute local video to prevent echo
+        localVideoRef.current.playsInline = true; // iOS Requirement
         localVideoRef.current.play().catch(e => console.warn("Local video play error", e));
         
         // Mic Logic
@@ -120,35 +122,32 @@ export const CallModal: React.FC<CallModalProps> = ({
     }
   }, [localStream, isMicOn, isDeafened, isVideoOn, isScreenSharing]);
 
-  // Attach Remote Stream (Video)
+  // Attach Remote Stream (Video & Audio)
   useEffect(() => {
-    if (remoteStream && remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = remoteStream;
-        remoteVideoRef.current.play().catch(e => console.warn("Remote video play error", e));
-    }
-  }, [remoteStream]); 
-
-  // Attach Remote Stream (Audio) & Volume Sync
-  useEffect(() => {
-    if (remoteStream && remoteAudioRef.current) {
-        remoteAudioRef.current.srcObject = remoteStream;
-        remoteAudioRef.current.volume = isDeafened ? 0 : remoteVolume;
-        remoteAudioRef.current.muted = isDeafened;
+    if (remoteStream) {
+        // Video
+        if (remoteVideoRef.current) {
+            remoteVideoRef.current.srcObject = remoteStream;
+            remoteVideoRef.current.playsInline = true; // iOS Requirement
+            remoteVideoRef.current.play().catch(e => console.warn("Remote video play error", e));
+        }
         
-        const playPromise = remoteAudioRef.current.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.warn("Auto-play prevented (Audio)", error);
-            });
+        // Audio
+        if (remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = remoteStream;
+            remoteAudioRef.current.volume = isDeafened ? 0 : remoteVolume;
+            remoteAudioRef.current.muted = isDeafened;
+            
+            const playPromise = remoteAudioRef.current.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Auto-play prevented (Audio)", error);
+                    // Add a UI indicator here if needed to let user click to unmute
+                });
+            }
         }
     }
-  }, [remoteStream, isDeafened]); 
-
-  useEffect(() => {
-      if (remoteAudioRef.current) {
-          remoteAudioRef.current.volume = isDeafened ? 0 : remoteVolume;
-      }
-  }, [remoteVolume, isDeafened]);
+  }, [remoteStream, isDeafened, remoteVolume]); 
 
   // 2. Signaling & WebRTC Logic
   useEffect(() => {
@@ -235,7 +234,14 @@ export const CallModal: React.FC<CallModalProps> = ({
         }
 
         pc.ontrack = (event) => {
-            setRemoteStream(new MediaStream(event.streams[0].getTracks()));
+            if (event.streams && event.streams[0]) {
+                setRemoteStream(event.streams[0]);
+            } else {
+                // Fallback if no streams array
+                const inboundStream = new MediaStream();
+                inboundStream.addTrack(event.track);
+                setRemoteStream(inboundStream);
+            }
         };
 
         pc.onicecandidate = (event) => {
@@ -317,6 +323,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   const startScreenShare = async () => {
+      if (isMobile) return; // Not supported on mobile
       try {
           const displayStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
           const screenTrack = displayStream.getVideoTracks()[0];
@@ -611,9 +618,11 @@ export const CallModal: React.FC<CallModalProps> = ({
                         <button onClick={toggleDeafen} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${isDeafened ? 'bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
                             {isDeafened ? <VolumeX size={24}/> : <Headphones size={24}/>}
                         </button>
-                        <button onClick={toggleScreenShare} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${isScreenSharing ? 'bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
-                            {isScreenSharing ? <MonitorOff size={24}/> : <Monitor size={24}/>}
-                        </button>
+                        {!isMobile && (
+                            <button onClick={toggleScreenShare} className={`w-14 h-14 rounded-full flex items-center justify-center transition-all active:scale-95 ${isScreenSharing ? 'bg-green-500 text-white shadow-[0_0_15px_rgba(34,197,94,0.4)]' : 'bg-white/10 hover:bg-white/20 text-white'}`}>
+                                {isScreenSharing ? <MonitorOff size={24}/> : <Monitor size={24}/>}
+                            </button>
+                        )}
                         <div className="w-px h-8 bg-white/10 mx-2" />
                         <button onClick={handleManualEnd} className="w-16 h-16 rounded-full bg-red-600 text-white hover:bg-red-500 shadow-[0_5px_20px_rgba(220,38,38,0.4)] flex items-center justify-center transition-all active:scale-95">
                             <PhoneOff size={28} />
