@@ -1022,19 +1022,36 @@ const App: React.FC = () => {
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
-  // Broadcast function for Admin (via System Channel)
-  const handleBroadcast = async (message: string) => {
-      const channel = supabase.channel('global_system');
-      channel.subscribe(async (status) => {
-          if (status === 'SUBSCRIBED') {
-              await channel.send({
-                  type: 'broadcast',
-                  event: 'system_alert',
-                  payload: { message, title: 'SYSTEM BROADCAST' }
+  // Broadcast function for Admin (via System Channel) - FIXED
+  const handleBroadcast = async (message: string): Promise<boolean> => {
+      try {
+          const channel = supabase.channel('global_system');
+          
+          return new Promise((resolve) => {
+              channel.subscribe(async (status) => {
+                  if (status === 'SUBSCRIBED') {
+                      await channel.send({
+                          type: 'broadcast',
+                          event: 'system_alert',
+                          payload: { message, title: 'SYSTEM BROADCAST' }
+                      });
+                      
+                      // Wait a bit to ensure delivery before cleanup
+                      setTimeout(() => {
+                          supabase.removeChannel(channel);
+                          resolve(true);
+                      }, 500);
+                  }
+                  
+                  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+                      resolve(false);
+                  }
               });
-              supabase.removeChannel(channel);
-          }
-      });
+          });
+      } catch (e) {
+          console.error("Broadcast failed:", e);
+          return false;
+      }
   };
 
   const retryConnection = () => {
