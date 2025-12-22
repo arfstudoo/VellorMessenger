@@ -1,17 +1,22 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, LayoutDashboard, Users, Radio, Server, Activity, Search, Loader2, Ban, Crown, BadgeCheck, UserX, Skull, Send, AlertTriangle, Globe, Eye, Trash2 } from 'lucide-react';
+import { X, LayoutDashboard, Users, Radio, Server, Activity, Search, Loader2, Ban, Crown, BadgeCheck, UserX, Skull, Send, AlertTriangle, Globe, Eye, Trash2, Power } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { ToastType } from '../Toast';
+import { UserProfile, UserStatus } from '../../types';
 
 interface AdminPanelProps {
   onClose: () => void;
   showToast: (msg: string, type: ToastType) => void;
   onlineUsers: Map<string, string>;
   onBroadcast?: (message: string) => Promise<boolean>;
+  onToggleMaintenance?: (active: boolean) => Promise<boolean>;
+  isMaintenanceMode?: boolean;
+  userProfile: UserProfile;
+  onUpdateStatus: (status: UserStatus) => void;
 }
 
-export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onlineUsers, onBroadcast }) => {
+export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onlineUsers, onBroadcast, onToggleMaintenance, isMaintenanceMode, userProfile, onUpdateStatus }) => {
   const [adminTab, setAdminTab] = useState<'dashboard' | 'users' | 'broadcast' | 'system'>('dashboard');
   const [dashboardStats, setDashboardStats] = useState({ users: 0, messages: 0 });
   
@@ -104,10 +109,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
         showToast("Введите текст сообщения", "warning");
         return;
     }
-    
     setIsBroadcasting(true);
-    
-    // Use the prop passed from App.tsx which contains the correct channel logic
     if (onBroadcast) {
         const success = await onBroadcast(adminBroadcastMsg);
         if (success) {
@@ -119,26 +121,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
     } else {
         showToast("Функция рассылки недоступна", "error");
     }
-    
     setIsBroadcasting(false);
   };
 
   const handlePurgeOldMessages = async () => {
       if(!confirm("Вы уверены? Это удалит старые сообщения из базы навсегда.")) return;
       setIsAdminActionLoading(true);
-      
       try {
-          // Attempt to delete messages older than 30 days
           const thirtyDaysAgo = new Date();
           thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-          
           const { error, count } = await supabase
             .from('messages')
             .delete({ count: 'exact' })
             .lt('created_at', thirtyDaysAgo.toISOString());
-
           if (error) throw error;
-          
           showToast(`Удалено сообщений: ${count || 0}`, "success");
       } catch (e: any) {
           console.error(e);
@@ -148,20 +144,28 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
       }
   };
 
-  const handleSystemAction = async (action: 'maintenance' | 'ghost') => {
-      if (!onBroadcast) return;
+  const handleToggleMaintenanceMode = async () => {
+      if (!onToggleMaintenance) return;
       setIsAdminActionLoading(true);
-      
-      const msg = action === 'maintenance' 
-        ? "⚠️ Внимание: Включен режим технических работ. Возможны перебои в работе сервиса."
-        : "👁️ Ghost Protocol Activated. All logging suspended.";
-        
-      const success = await onBroadcast(msg);
-      
+      const newState = !isMaintenanceMode;
+      const success = await onToggleMaintenance(newState);
       if (success) {
-          showToast(action === 'maintenance' ? "Режим техработ включен" : "Протокол активирован", "success");
+          showToast(newState ? "Режим техработ включен" : "Режим техработ отключен", "success");
       } else {
-          showToast("Ошибка активации режима", "error");
+          showToast("Ошибка переключения режима", "error");
+      }
+      setIsAdminActionLoading(false);
+  };
+
+  const handleToggleGhostMode = async () => {
+      setIsAdminActionLoading(true);
+      // PERSONAL GHOST MODE: Sets status to offline in DB and locally, but doesn't sign out.
+      try {
+          await supabase.from('profiles').update({ status: 'offline' }).eq('id', userProfile.id);
+          onUpdateStatus('offline'); // Update local app state
+          showToast("Ghost Protocol Activated: You are invisible.", "success");
+      } catch (e) {
+          showToast("Failed to activate Ghost Protocol", "error");
       }
       setIsAdminActionLoading(false);
   };
@@ -212,6 +216,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                             <div className="flex justify-between text-xs"><span className="text-white/60">Database</span><span className="text-green-400 font-bold">Connected</span></div>
                             <div className="flex justify-between text-xs"><span className="text-white/60">Realtime</span><span className="text-green-400 font-bold">Active</span></div>
                             <div className="flex justify-between text-xs"><span className="text-white/60">Online Now</span><span className="text-white font-bold">{onlineUsers.size}</span></div>
+                            <div className="flex justify-between text-xs"><span className="text-white/60">Maintenance</span><span className={`font-bold ${isMaintenanceMode ? 'text-red-500' : 'text-green-400'}`}>{isMaintenanceMode ? 'ACTIVE' : 'Inactive'}</span></div>
                         </div>
                     </div>
                 </div>
@@ -290,11 +295,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                             <h4 className="text-xs font-bold uppercase text-white">Global Actions</h4>
                         </div>
                         <div className="space-y-3">
-                            <button onClick={() => handleSystemAction('maintenance')} disabled={isAdminActionLoading} className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/40 rounded-xl text-yellow-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
-                                <Server size={14}/> Maintenance Mode
+                            <button 
+                                onClick={handleToggleMaintenanceMode} 
+                                disabled={isAdminActionLoading} 
+                                className={`w-full py-3 rounded-xl font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 ${isMaintenanceMode ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300'}`}
+                            >
+                                <Server size={14}/> {isMaintenanceMode ? 'Disable Maintenance' : 'Enable Maintenance'}
                             </button>
-                            <button onClick={() => handleSystemAction('ghost')} disabled={isAdminActionLoading} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
-                                <Eye size={14}/> Ghost Protocol
+                            <button onClick={handleToggleGhostMode} disabled={isAdminActionLoading} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+                                <Eye size={14}/> Ghost Protocol (Self)
                             </button>
                         </div>
                 </div>

@@ -34,6 +34,8 @@ interface ChatListProps {
   showToast: (msg: string, type: ToastType) => void;
   onlineUsers: Map<string, UserStatus>;
   onBroadcast?: (message: string) => Promise<boolean>; 
+  onToggleMaintenance?: (active: boolean) => Promise<boolean>;
+  isMaintenanceMode?: boolean;
 }
 
 // Render Helper moved from inline to keep it accessible
@@ -52,7 +54,7 @@ const renderPrivacyOption = (label: string, value: PrivacyValue, type: string, I
 );
 
 export const ChatList: React.FC<ChatListProps> = ({ 
-  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers, onBroadcast
+  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers, onBroadcast, onToggleMaintenance, isMaintenanceMode
 }) => {
   const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | 'admin_login' | 'admin_panel' | 'changelog' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -314,10 +316,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
         {/* This input is just for the header view, the actual search state is used for the list filtering */}
         <div className="relative group">
-            {/* We reuse setSearchQuery but note this is strictly for filtering chats, not global user search which is in the modal */}
-            {/* Actually, let's keep search query here for local chat filtering */}
             <div className="absolute left-3 top-2.5 text-white/30"><div className="w-4 h-4" /></div> 
-            {/* Replaced Icon with div to avoid import mess in this specific condensed block, real input below */}
             <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2 pl-9 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all text-white" />
         </div>
       </div>
@@ -425,6 +424,10 @@ export const ChatList: React.FC<ChatListProps> = ({
                     showToast={showToast}
                     onlineUsers={onlineUsers as any}
                     onBroadcast={onBroadcast}
+                    onToggleMaintenance={onToggleMaintenance}
+                    isMaintenanceMode={isMaintenanceMode}
+                    userProfile={userProfile}
+                    onUpdateStatus={onUpdateStatus}
                  />
              )}
 
@@ -457,8 +460,6 @@ export const ChatList: React.FC<ChatListProps> = ({
              )}
 
              {/* PRIVACY MODAL */}
-             {/* Note: In a full refactor, this would also be its own file, but we'll leave it here for now to avoid creating too many files at once as per user request flow, or simplify it */}
-             {/* Actually let's just keep the rendering here for now as it's simple enough */}
              {activeModal === 'privacy' && (
                  <div className="flex flex-col h-full bg-[#050505] relative">
                      <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
@@ -466,8 +467,6 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">Приватность</h2>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-2 custom-scrollbar">
-                         {/* We can't use imported icons in helper if they aren't passed, so we pass them or redefine */}
-                         {/* For simplicity in this response, just basic buttons */}
                          {['Номер телефона', 'Время захода', 'Фото профиля'].map(item => (
                              <div key={item} className="p-4 bg-white/5 rounded-2xl text-white text-sm">{item}</div>
                          ))}
@@ -488,58 +487,41 @@ export const ChatList: React.FC<ChatListProps> = ({
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                          
-                         {/* VERSION 2.1.1 (NEW) */}
+                         {/* VERSION 2.2.0 (NEW) */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-vellor-red shadow-[0_0_10px_currentColor]" />
+                             <div>
+                                 <h3 className="text-lg font-black text-white">Версия 2.2.0</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">System & Profile Overhaul</p>
+                             </div>
+                             <div className="space-y-3">
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-vellor-red mb-2 flex items-center gap-2"><User size={14}/> New Profile UI</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Полностью переработан экран профиля. Добавлены баннеры, вкладки и улучшенная навигация.
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-yellow-500 mb-2 flex items-center gap-2"><ShieldAlert size={14}/> Admin Tools</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Добавлен режим технического обслуживания (блокировка экрана) и персональный режим невидимки (Ghost Protocol).
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* VERSION 2.1.1 */}
+                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
+                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div>
                                  <h3 className="text-lg font-black text-white">Версия 2.1.1</h3>
                                  <p className="text-[10px] text-white/40 font-mono">UX Polish</p>
                              </div>
                              <div className="space-y-3">
                                  <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-vellor-red mb-2 flex items-center gap-2"><Folder size={14}/> Persistent Folders</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Folder size={14}/> Persistent Folders</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
                                          Теперь приложение запоминает выбранную вкладку чатов ("Все", "Личные", "Группы") и восстанавливает её при запуске.
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-
-                         {/* VERSION 2.1 */}
-                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
-                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div>
-                                 <h3 className="text-lg font-black text-white">Версия 2.1</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Features & Fixes</p>
-                             </div>
-                             <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Chat Folders</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Добавлена группировка чатов: "Все", "Личные", "Группы".
-                                     </p>
-                                 </div>
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Audio Waveforms</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Голосовые сообщения теперь отображаются с визуализацией волны.
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-
-                         {/* VERSION 2.0 */}
-                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-30">
-                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div>
-                                 <h3 className="text-lg font-black text-white">Версия 2.0</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Genesis Architecture</p>
-                             </div>
-                             <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Atomic Structure</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Масштабный рефакторинг завершен. Приложение переведено на модульную архитектуру. 
                                      </p>
                                  </div>
                              </div>
