@@ -11,15 +11,18 @@ const MButton = motion.button as any;
 const MSvg = motion.svg as any;
 const MPath = motion.path as any;
 
+// Status component that always shows double ticks if read, or single if sent
 const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = React.memo(({ isRead, isOwn }) => {
   if (!isOwn) return null;
   return (
     <div className="flex items-center justify-center w-3.5 h-3.5 relative ml-0.5">
-       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full" initial="hidden" animate="visible">
-         <MPath d="M20 6L9 17l-5-5" fill="none" stroke={isRead ? "#ff0033" : "rgba(255,255,255,0.7)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" variants={{ hidden: { pathLength: 0, opacity: 0 }, visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3 } } }} />
+       {/* First Tick (Always visible if sent) */}
+       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full">
+         <path d="M20 6L9 17l-5-5" fill="none" stroke={isRead ? "#ff0033" : "rgba(255,255,255,0.7)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
        </MSvg>
-       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full left-[4px] -top-[1px]" initial="hidden" animate={isRead ? "visible" : "hidden"}>
-         <MPath d="M20 6L9 17l-5-5" fill="none" stroke="#ff0033" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" variants={{ hidden: { pathLength: 0, opacity: 0 }, visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3, delay: 0.1 } } }} />
+       {/* Second Tick (Visible if delivered/read) */}
+       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full left-[4px] -top-[1px]">
+         <path d="M20 6L9 17l-5-5" fill="none" stroke={isRead ? "#ff0033" : "rgba(255,255,255,0.7)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: isRead ? 1 : 0.3 }} />
        </MSvg>
     </div>
   );
@@ -42,7 +45,7 @@ const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactN
     );
 };
 
-export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction }: any) => {
+export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction, onShowProfile }: any) => {
     const getSenderInfo = (senderId: string) => {
         if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
         if (chatUser.isGroup && groupMembers.length > 0) {
@@ -87,7 +90,10 @@ export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId
             <SwipeableMessage isMe={isMe} onReply={() => onReply(msg)}>
                 <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
                     {!isMe && chatUser.isGroup && (
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10">
+                        <div 
+                            className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10 cursor-pointer"
+                            onClick={() => onShowProfile && onShowProfile(senderInfo.id)}
+                        >
                             {senderInfo && senderInfo.avatar ? <img src={senderInfo.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-gray-700" />}
                         </div>
                     )}
@@ -105,7 +111,14 @@ export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId
                         )}
 
                         {!isMe && chatUser.isGroup && (
-                            <div className="flex items-center gap-1 mb-1 ml-1"><p className="text-[10px] font-bold text-vellor-red">{senderInfo?.name}</p></div>
+                            <div className="flex items-center gap-1 mb-1 ml-1">
+                                <button 
+                                    className="text-[10px] font-bold text-vellor-red hover:underline"
+                                    onClick={(e) => { e.stopPropagation(); onShowProfile && onShowProfile(senderInfo.id); }}
+                                >
+                                    {senderInfo?.name}
+                                </button>
+                            </div>
                         )}
 
                         {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}

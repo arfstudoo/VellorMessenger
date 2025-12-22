@@ -10,7 +10,7 @@ import { Toast, ToastType } from './components/Toast';
 import { MaintenanceOverlay } from './components/MaintenanceOverlay';
 import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
 import { supabase } from './supabaseClient';
-import { ShieldAlert, RefreshCw, Copy, Check, Lock } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Lock } from 'lucide-react';
 import { NOTIFICATION_SOUNDS, CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK } from './constants';
 import { useChatData } from './hooks/useChatData';
 
@@ -89,8 +89,6 @@ const THEMES_CONFIG = {
   }
 };
 
-const SQL_FIX_SCRIPT = `-- ULTIMATE UPDATE V1.5 ...`;
-
 interface CallSession {
   state: CallState;
   type: CallType;
@@ -103,7 +101,6 @@ interface CallSession {
 const App: React.FC = () => {
   const [appState, setAppState] = useState<'loading' | 'auth' | 'app'>('loading');
   const [isDatabaseError, setIsDatabaseError] = useState(false);
-  const [sqlCopied, setSqlCopied] = useState(false);
   
   // Maintenance State
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
@@ -245,12 +242,11 @@ const App: React.FC = () => {
     });
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'groups' }, (payload: any) => handleUpdateGroup(payload.new));
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload: any) => {
-        // Own profile update logic (local)
         if (payload.new.id === userProfile.id) {
              const u = payload.new;
              setUserProfile(prev => ({ ...prev, name: u.full_name, username: u.username, bio: u.bio, avatar: u.avatar_url, isAdmin: u.is_admin, isVerified: u.is_verified, isBanned: u.is_banned }));
         }
-        handleRealtimePayload(payload); // Forward to chat list update
+        handleRealtimePayload(payload);
     });
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_settings' }, (payload: any) => {
         if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id) fetchChats();
@@ -259,13 +255,17 @@ const App: React.FC = () => {
     return () => { supabase.removeChannel(channel); };
   }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats, activeChatId, handleUpdateGroup]);
 
-  // Presence & Signaling
+  // Presence & Page Visibility
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
+    
     const channel = supabase.channel('global_presence', { config: { presence: { key: userProfile.id } } });
     presenceChannelRef.current = channel;
-    const handleBeforeUnload = async () => { await channel.untrack(); };
-    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    const trackPresence = async (status: UserStatus) => {
+        await channel.track({ online_at: new Date().toISOString(), user_id: userProfile.id, status });
+    };
+
     channel
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
@@ -281,8 +281,32 @@ const App: React.FC = () => {
          setOnlineUsers(prev => { const next = new Map(prev); next.set(key, (newPresences[0] as any)?.status || 'online'); return next; });
       })
       .on('presence', { event: 'leave' }, ({ key }) => setOnlineUsers(prev => { const next = new Map(prev); next.delete(key); return next; }))
-      .subscribe(async (status) => { if (status === 'SUBSCRIBED') await channel.track({ online_at: new Date().toISOString(), user_id: userProfile.id, status: 'online' }); });
-    return () => { window.removeEventListener('beforeunload', handleBeforeUnload); channel.untrack(); supabase.removeChannel(channel); presenceChannelRef.current = null; };
+      .subscribe(async (status) => { 
+          if (status === 'SUBSCRIBED') await trackPresence('online'); 
+      });
+
+    // Handle Tab Switching / Minimizing
+    const handleVisibilityChange = async () => {
+        if (document.hidden) {
+            await trackPresence('away');
+        } else {
+            await trackPresence('online');
+        }
+    };
+
+    // Handle Window Close
+    const handleBeforeUnload = async () => { await channel.untrack(); };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => { 
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+        window.removeEventListener('beforeunload', handleBeforeUnload); 
+        channel.untrack(); 
+        supabase.removeChannel(channel); 
+        presenceChannelRef.current = null; 
+    };
   }, [appState, userProfile.id, isDatabaseError]);
 
   const handleBroadcast = async (message: string): Promise<boolean> => {
@@ -296,6 +320,8 @@ const App: React.FC = () => {
   const handleMaintenanceToggle = async (active: boolean): Promise<boolean> => {
       if (!systemChannelRef.current) return false;
       try {
+          // Update local state immediately for the admin
+          setIsMaintenanceMode(active);
           await systemChannelRef.current.send({ type: 'broadcast', event: 'maintenance_toggle', payload: { active } });
           return true;
       } catch (e) { return false; }
@@ -310,7 +336,6 @@ const App: React.FC = () => {
           sendBrowserNotification(payload.title || 'SYSTEM BROADCAST', payload.message);
           playNotificationSound();
       });
-      // Listener for Maintenance Toggle
       channel.on('broadcast', { event: 'maintenance_toggle' }, ({ payload }) => {
           setIsMaintenanceMode(payload.active);
       });
@@ -349,7 +374,6 @@ const App: React.FC = () => {
 
   useEffect(() => { if (!callData || callData.state === 'connected' || callData.state === 'ended') stopRingtone(); }, [callData]);
 
-  // Handlers
   const handleSplashComplete = async () => {
     try {
       const { data: { session } } = await (supabase.auth as any).getSession();
@@ -397,8 +421,6 @@ const App: React.FC = () => {
   const retryConnection = () => { setIsDatabaseError(false); fetchChats(); };
   const activeChat = chats.find(c => c.id === activeChatId) || (tempChatUser?.id === activeChatId ? { id: activeChatId, user: tempChatUser, messages: [], unreadCount: 0, lastMessage: {} as Message } : null);
 
-  // MAINTENANCE MODE BLOCKER
-  // Shows overlay if Maintenance Mode is active AND user is NOT an admin
   if (isMaintenanceMode && !userProfile.isAdmin) {
       return <MaintenanceOverlay />;
   }

@@ -6,13 +6,11 @@ import { Chat, MessageType, CallType, UserStatus, User as UserType } from '../ty
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 import { MessageItem } from './chat/MessageItem';
+import { ProfileModal } from './modals/ProfileModal';
 
 const MDiv = motion.div as any;
 const MImg = motion.img as any;
 const MButton = motion.button as any;
-
-// PLACEHOLDER API KEY - USER MUST REPLACE WITH THEIR OWN
-const YANDEX_API_KEY = '288c46c6-893f-41bc-b7a6-7f7ec750725a'; 
 
 interface ChatWindowProps {
   chat: Chat;
@@ -22,7 +20,7 @@ interface ChatWindowProps {
   onSendMessage: (chatId: string, text: string, type?: MessageType, mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => void;
   markAsRead: (chatId: string) => void;
   onStartCall: (chatId: string, type: CallType) => void;
-  isPartnerTyping: boolean; // Deprecated, use typingUserNames
+  isPartnerTyping: boolean; 
   onSendTypingSignal: (isTyping: boolean) => void;
   wallpaper?: string;
   onEditMessage: (id: string, text: string) => void;
@@ -32,7 +30,7 @@ interface ChatWindowProps {
   showToast: (msg: string, type: ToastType) => void;
   onLeaveGroup?: (groupId: string) => void;
   onDeleteGroup?: (groupId: string) => void;
-  typingUserNames?: string[]; // New Prop
+  typingUserNames?: string[]; 
   onUpdateGroupInfo?: (groupId: string, description: string) => void;
 }
 
@@ -68,6 +66,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: any } | null>(null);
   const [uploadingType, setUploadingType] = useState<MessageType | null>(null);
+
+  // New state for viewing member profile from chat
+  const [selectedMemberProfile, setSelectedMemberProfile] = useState<any | null>(null);
 
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [showScrollButton, setShowScrollButton] = useState(false);
@@ -135,6 +136,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         fetchMembers();
     }
   }, [chat.id, chat.user.isGroup, showUserInfo]);
+
+  const handleViewMemberProfile = (userId: string) => {
+      const member = groupMembers.find(m => m.user.id === userId);
+      if (member) {
+          setSelectedMemberProfile(member.user);
+      }
+  };
 
   useEffect(() => {
       if (!isAddingMember || !memberSearchQuery.trim()) {
@@ -395,7 +403,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
   
-  // CRITICAL FIX: Same logic as ChatList. Rely on Map.
   const realtimeStatus = onlineUsers.has(chat.user.id) ? (onlineUsers.get(chat.user.id) || 'online') : 'offline';
   
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
@@ -411,6 +418,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
         
+        {/* Read-only Profile Modal */}
+        <AnimatePresence>
+            {selectedMemberProfile && (
+                <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <MDiv initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="w-full max-w-sm h-[80vh] overflow-hidden rounded-[2rem] shadow-2xl relative">
+                        <ProfileModal 
+                            userProfile={selectedMemberProfile}
+                            onUpdateProfile={() => {}} // No-op, readonly
+                            onSaveProfile={async () => {}} // No-op
+                            onClose={() => setSelectedMemberProfile(null)}
+                        />
+                        {/* Overlay to block editing */}
+                        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black via-black/80 to-transparent z-30 flex items-center justify-center">
+                            <button onClick={() => setSelectedMemberProfile(null)} className="px-6 py-2 bg-white/10 hover:bg-white/20 rounded-full text-white text-xs font-bold backdrop-blur-md transition-colors">Закрыть</button>
+                        </div>
+                    </MDiv>
+                </MDiv>
+            )}
+        </AnimatePresence>
+
         <div className="h-14 flex items-center justify-between px-2 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
             <div className="flex items-center gap-1 md:gap-4 overflow-hidden">
                 {isMobile && <button onClick={onBack} className="text-white p-3 -ml-2 hover:bg-white/5 rounded-full active:scale-95 transition-transform"><ArrowLeft size={22}/></button>}
@@ -453,10 +480,25 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth touch-pan-y">
             {chat.messages.map((msg) => (
-                <MessageItem key={msg.id} msg={msg} isMe={msg.senderId === 'me' || msg.senderId === myId} chatUser={chat.user} groupMembers={groupMembers} myId={myId} onContextMenu={handleContextMenu} onReply={(m: any) => setReplyingTo(m)} scrollToMessage={scrollToMessage} setZoomedImage={setZoomedImage} chatMessages={chat.messages} handleToggleReaction={handleToggleReaction} />
+                <MessageItem 
+                    key={msg.id} 
+                    msg={msg} 
+                    isMe={msg.senderId === 'me' || msg.senderId === myId} 
+                    chatUser={chat.user} 
+                    groupMembers={groupMembers} 
+                    myId={myId} 
+                    onContextMenu={handleContextMenu} 
+                    onReply={(m: any) => setReplyingTo(m)} 
+                    scrollToMessage={scrollToMessage} 
+                    setZoomedImage={setZoomedImage} 
+                    chatMessages={chat.messages} 
+                    handleToggleReaction={handleToggleReaction}
+                    onShowProfile={handleViewMemberProfile}
+                />
             ))}
         </div>
         
+        {/* ... (Rest of the component remains largely unchanged) ... */}
         {showScrollButton && (
             <button onClick={() => scrollToBottom('smooth')} className="absolute bottom-20 right-4 z-50 p-2 bg-black/80 border border-white/10 rounded-full text-white shadow-xl hover:bg-vellor-red transition-colors animate-bounce">
                 <ArrowDown size={20} />
@@ -586,7 +628,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                             {groupMembers.map(member => {
                                                 const status = onlineUsers.has(member.user.id) ? 'online' : 'offline';
                                                 return (
-                                                    <div key={member.user.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors">
+                                                    <div 
+                                                        key={member.user.id} 
+                                                        className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors cursor-pointer"
+                                                        onClick={() => setSelectedMemberProfile(member.user)}
+                                                    >
                                                         <div className="relative">
                                                             <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden"><img src={member.user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
                                                             <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-black rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`} />
@@ -644,6 +690,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* BOTTOM INPUT */}
         <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-[env(safe-area-inset-bottom)]">
+             {/* Input Area... (Same as before) */}
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">
                      <div className="flex items-center gap-3 overflow-hidden">
@@ -696,7 +743,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         />
                         <button onClick={() => setShowEmojis(!showEmojis)} className={`p-2.5 mb-0.5 transition-colors active:scale-90 ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={20}/></button>
                         
-                        {/* EMOJI PICKER OVERLAY */}
                         <AnimatePresence>
                             {showEmojis && (
                                 <MDiv 
