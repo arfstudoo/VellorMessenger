@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, LayoutDashboard, Users, Radio, Server, Activity, Search, Loader2, Ban, Crown, BadgeCheck, UserX, Skull, Send, AlertTriangle, Globe, Eye, Trash2, Power } from 'lucide-react';
+import { X, LayoutDashboard, Users, Radio, Server, Activity, Search, Loader2, Ban, Crown, BadgeCheck, UserX, Skull, Send, AlertTriangle, Globe, Eye, Trash2, Power, MousePointerClick } from 'lucide-react';
 import { supabase } from '../../supabaseClient';
 import { ToastType } from '../Toast';
 import { UserProfile, UserStatus } from '../../types';
@@ -144,28 +144,27 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
       }
   };
 
-  const handleToggleMaintenanceMode = async () => {
+  const handleSetMaintenanceMode = async (enable: boolean) => {
       if (!onToggleMaintenance) return;
       setIsAdminActionLoading(true);
-      const newState = !isMaintenanceMode;
-      const success = await onToggleMaintenance(newState);
+      const success = await onToggleMaintenance(enable);
       if (success) {
-          showToast(newState ? "Режим техработ включен" : "Режим техработ отключен", "success");
+          showToast(enable ? "Режим техработ включен" : "Режим техработ отключен", enable ? "warning" : "success");
       } else {
           showToast("Ошибка переключения режима", "error");
       }
       setIsAdminActionLoading(false);
   };
 
-  const handleToggleGhostMode = async () => {
+  const handleSetGhostMode = async (enable: boolean) => {
       setIsAdminActionLoading(true);
-      // PERSONAL GHOST MODE: Sets status to offline in DB and locally, but doesn't sign out.
       try {
-          await supabase.from('profiles').update({ status: 'offline' }).eq('id', userProfile.id);
-          onUpdateStatus('offline'); // Update local app state
-          showToast("Ghost Protocol Activated: You are invisible.", "success");
+          const newStatus = enable ? 'offline' : 'online';
+          await supabase.from('profiles').update({ status: newStatus }).eq('id', userProfile.id);
+          onUpdateStatus(newStatus); 
+          showToast(enable ? "Ghost Protocol Activated: Invisible" : "Ghost Protocol Deactivated: Visible", enable ? "success" : "info");
       } catch (e) {
-          showToast("Failed to activate Ghost Protocol", "error");
+          showToast("Failed to toggle Ghost Protocol", "error");
       }
       setIsAdminActionLoading(false);
   };
@@ -294,15 +293,25 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                             <Globe size={20} className="text-yellow-500" />
                             <h4 className="text-xs font-bold uppercase text-white">Global Actions</h4>
                         </div>
+                        <p className="text-[9px] text-white/40 mb-4 flex items-center gap-2">
+                            <MousePointerClick size={12}/> Left Click: Enable / Right Click: Disable
+                        </p>
                         <div className="space-y-3">
                             <button 
-                                onClick={handleToggleMaintenanceMode} 
+                                onClick={() => handleSetMaintenanceMode(true)} 
+                                onContextMenu={(e) => { e.preventDefault(); handleSetMaintenanceMode(false); }}
                                 disabled={isAdminActionLoading} 
-                                className={`w-full py-3 rounded-xl font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 ${isMaintenanceMode ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-yellow-500/20 hover:bg-yellow-500/40 text-yellow-300'}`}
+                                className={`w-full py-3 rounded-xl font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 ${isMaintenanceMode ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-green-500/20 hover:bg-green-500/40 text-green-300'}`}
                             >
-                                <Server size={14}/> {isMaintenanceMode ? 'Disable Maintenance' : 'Enable Maintenance'}
+                                <Server size={14}/> {isMaintenanceMode ? 'Maintenance ACTIVE' : 'Enable Maintenance'}
                             </button>
-                            <button onClick={handleToggleGhostMode} disabled={isAdminActionLoading} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+                            
+                            <button 
+                                onClick={() => handleSetGhostMode(true)} 
+                                onContextMenu={(e) => { e.preventDefault(); handleSetGhostMode(false); }}
+                                disabled={isAdminActionLoading} 
+                                className={`w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 ${userProfile.status === 'offline' ? 'text-white border border-white/20' : 'text-white/50'}`}
+                            >
                                 <Eye size={14}/> Ghost Protocol (Self)
                             </button>
                         </div>

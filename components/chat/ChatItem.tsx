@@ -18,7 +18,10 @@ interface ChatItemProps {
 }
 
 export const ChatItem: React.FC<ChatItemProps> = ({ chat, activeChatId, onSelectChat, onContextMenu, onlineUsers, typingUsers, settings }) => {
-  const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
+  // CRITICAL FIX: Only show online status if the user is ACTUALLY in the Presence Map.
+  // We do NOT fallback to `chat.user.status` because the DB might say 'online' when they are actually gone.
+  const realtimeStatus = onlineUsers.has(chat.user.id) ? (onlineUsers.get(chat.user.id) || 'online') : 'offline';
+  
   const typers = typingUsers[chat.id] || [];
   const isMobile = window.innerWidth < 768;
 

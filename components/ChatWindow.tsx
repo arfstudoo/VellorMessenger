@@ -37,7 +37,7 @@ interface ChatWindowProps {
 }
 
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
-const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
+const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😺","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
@@ -58,13 +58,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [pendingFile, setPendingFile] = useState<{file: File, url: string, type: MessageType} | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   
-  // Add Member State
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [memberSearchQuery, setMemberSearchQuery] = useState("");
   const [memberSearchResults, setMemberSearchResults] = useState<UserType[]>([]);
   const [isSearchingMembers, setIsSearchingMembers] = useState(false);
 
-  // Group Description Edit State
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [editDescText, setEditDescText] = useState("");
 
@@ -78,7 +76,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // ANTI-SPAM THROTTLE REF
   const lastMessageTimeRef = useRef(0);
 
   const pinnedMessage = chat.messages.find(m => m.isPinned);
@@ -137,9 +134,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         };
         fetchMembers();
     }
-  }, [chat.id, chat.user.isGroup, showUserInfo]); // Refetch on open info
+  }, [chat.id, chat.user.isGroup, showUserInfo]);
 
-  // Member Search Effect
   useEffect(() => {
       if (!isAddingMember || !memberSearchQuery.trim()) {
           setMemberSearchResults([]);
@@ -163,7 +159,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   status: p.status || 'offline',
                   isVerified: p.is_verified
               }));
-              // Filter out existing members
               setMemberSearchResults(mappedUsers.filter(u => !groupMembers.some(gm => gm.user.id === u.id)));
           }
           setIsSearchingMembers(false);
@@ -188,7 +183,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           setIsAddingMember(false);
           setMemberSearchQuery("");
           
-          // Optimistically update list
           const newMember = { 
               group_id: chat.id, 
               user_id: user.id, 
@@ -400,7 +394,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
-  const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
+  
+  // CRITICAL FIX: Same logic as ChatList. Rely on Map.
+  const realtimeStatus = onlineUsers.has(chat.user.id) ? (onlineUsers.get(chat.user.id) || 'online') : 'offline';
+  
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
   const isOwner = chat.ownerId === myId;
 
@@ -587,7 +584,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                         </div>
                                         <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
                                             {groupMembers.map(member => {
-                                                const status = onlineUsers.get(member.user.id) || 'offline';
+                                                const status = onlineUsers.has(member.user.id) ? 'online' : 'offline';
                                                 return (
                                                     <div key={member.user.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors">
                                                         <div className="relative">

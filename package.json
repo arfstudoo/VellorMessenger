@@ -2,7 +2,7 @@
 {
   "name": "vellor-messenger",
   "private": true,
-  "version": "2.1.4",
+  "version": "2.1.3",
   "main": "electron/main.js",
   "description": "A premium, dark-themed messenger with glassmorphism aesthetics.",
   "author": "ArfStudio",
