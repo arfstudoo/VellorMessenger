@@ -30,7 +30,8 @@ export interface UserProfile {
   avatar: string;
   status: UserStatus;
   isAdmin?: boolean;      
-  isVerified?: boolean;   
+  isVerified?: boolean;
+  isBanned?: boolean; // Added for Ban functionality
   created_at?: string; // Added
   
   // Privacy Settings
@@ -84,6 +85,7 @@ export interface Chat {
   isPinned?: boolean; 
   isMuted?: boolean;
   ownerId?: string; // Added: ID of the group creator
+  lastReadAt?: string | null; // Added for correct group unread calculation
 }
 
 export type CallType = 'audio' | 'video';

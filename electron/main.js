@@ -1,6 +1,12 @@
 
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// Configure logging
+autoUpdater.logger = log;
+autoUpdater.logger.transports.file.level = 'info';
 
 let mainWindow;
 
@@ -34,7 +40,7 @@ function createWindow() {
     mainWindow.loadURL(startUrl);
     mainWindow.webContents.openDevTools(); 
   } else {
-    // Production mode: load file securely (handles spaces and cyrillic characters automatically)
+    // Production mode: load file securely
     mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 
@@ -46,6 +52,11 @@ function createWindow() {
 
   mainWindow.on('closed', function () {
     mainWindow = null;
+  });
+  
+  // Trigger update check once window is loaded
+  mainWindow.once('ready-to-show', () => {
+    autoUpdater.checkForUpdatesAndNotify();
   });
 }
 
@@ -61,4 +72,15 @@ app.on('activate', function () {
   if (mainWindow === null) {
     createWindow();
   }
+});
+
+/* --- AUTO UPDATER EVENTS --- */
+autoUpdater.on('update-available', () => {
+  log.info('Update available.');
+  if(mainWindow) mainWindow.webContents.send('update_available');
+});
+
+autoUpdater.on('update-downloaded', () => {
+  log.info('Update downloaded.');
+  if(mainWindow) mainWindow.webContents.send('update_downloaded');
 });

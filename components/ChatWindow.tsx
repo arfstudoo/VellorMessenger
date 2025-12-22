@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus, Save } from 'lucide-react';
 import { Chat, Message, MessageType, CallType, UserStatus, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -31,6 +31,7 @@ interface ChatWindowProps {
   onLeaveGroup?: (groupId: string) => void;
   onDeleteGroup?: (groupId: string) => void;
   typingUserNames?: string[]; // New Prop
+  onUpdateGroupInfo?: (groupId: string, description: string) => void;
 }
 
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
@@ -215,7 +216,7 @@ const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onCon
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
-    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup, onDeleteGroup, typingUserNames = []
+    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup, onDeleteGroup, typingUserNames = [], onUpdateGroupInfo
 }) => {
   const [inputText, setInputText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -238,6 +239,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [memberSearchResults, setMemberSearchResults] = useState<UserType[]>([]);
   const [isSearchingMembers, setIsSearchingMembers] = useState(false);
 
+  // Group Description Edit State
+  const [isEditingDesc, setIsEditingDesc] = useState(false);
+  const [editDescText, setEditDescText] = useState("");
+
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
   const [uploadingType, setUploadingType] = useState<MessageType | null>(null);
 
@@ -247,6 +252,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   
   const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // ANTI-SPAM THROTTLE REF
+  const lastMessageTimeRef = useRef(0);
 
   const pinnedMessage = chat.messages.find(m => m.isPinned);
 
@@ -409,6 +417,14 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (!inputText.trim() && !pendingFile) return; 
     if (isUploading) return;
 
+    // ANTI-SPAM CHECK (Throttle)
+    const now = Date.now();
+    if (now - lastMessageTimeRef.current < 300) { // Max 3-4 messages per second
+        showToast("Помедленнее! Вы отправляете слишком часто.", "warning");
+        return;
+    }
+    lastMessageTimeRef.current = now;
+
     if (editingMessageId) {
         onEditMessage(editingMessageId, inputText);
         setEditingMessageId(null);
@@ -440,10 +456,17 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    onSendTypingSignal(true);
-    typingTimeoutRef.current = setTimeout(() => { onSendTypingSignal(false); }, 2000);
+    const val = e.target.value;
+    setInputText(val);
+    
+    // Throttle typing signal as well
+    if (!typingTimeoutRef.current) {
+        onSendTypingSignal(true);
+        typingTimeoutRef.current = setTimeout(() => { 
+            onSendTypingSignal(false); 
+            typingTimeoutRef.current = null; 
+        }, 2000);
+    }
   };
 
   // ... (Paste, Recording, File Upload Handlers - unchanged) ...
@@ -512,9 +535,16 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const saveGroupDescription = () => {
+      if (!onUpdateGroupInfo) return;
+      onUpdateGroupInfo(chat.id, editDescText);
+      setIsEditingDesc(false);
+  };
+
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
   const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
+  const isOwner = chat.ownerId === myId;
 
   // Logic for Typing Text
   const typingText = typingUserNames.length > 0
@@ -622,7 +652,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
                     <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
-                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); }} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={18}/></button>
+                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); setIsEditingDesc(false); }} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={18}/></button>
                     </div>
                     
                     {/* INFO CONTENT */}
@@ -667,9 +697,32 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         ) : (
                             // STANDARD INFO VIEW
                             <div className="w-full space-y-3">
-                                <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                                <div className="p-5 bg-white/5 border border-white/5 rounded-2xl relative group/desc">
                                     <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2"><Info size={12}/> О себе</h4>
-                                    <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">{chat.user.bio || 'Информация не заполнена.'}</p>
+                                    
+                                    {isEditingDesc ? (
+                                        <div className="space-y-2">
+                                            <textarea 
+                                                value={editDescText} 
+                                                onChange={(e) => setEditDescText(e.target.value)}
+                                                className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 outline-none focus:border-vellor-red/50"
+                                                rows={3}
+                                            />
+                                            <div className="flex gap-2 justify-end">
+                                                <button onClick={() => setIsEditingDesc(false)} className="px-3 py-1 bg-white/5 rounded-lg text-xs hover:bg-white/10">Отмена</button>
+                                                <button onClick={saveGroupDescription} className="px-3 py-1 bg-vellor-red rounded-lg text-xs font-bold text-white hover:bg-red-600 flex items-center gap-1"><Save size={12}/> Сохранить</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">{chat.user.bio || 'Информация не заполнена.'}</p>
+                                            {isOwner && chat.user.isGroup && (
+                                                <button onClick={() => { setIsEditingDesc(true); setEditDescText(chat.user.bio || ""); }} className="absolute top-4 right-4 p-1.5 bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors opacity-0 group-hover/desc:opacity-100">
+                                                    <Edit2 size={12}/>
+                                                </button>
+                                            )}
+                                        </>
+                                    )}
                                 </div>
                                 
                                 {chat.user.isGroup && (
@@ -702,8 +755,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 )}
 
                                 <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
-                                    <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
-                                    <div className="flex items-center gap-3 opacity-70"><Calendar size={16} /><span className="text-xs">{chat.user.created_at ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` : 'Дата регистрации скрыта'}</span></div>
+                                    {!chat.user.isGroup && (
+                                        <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
+                                    )}
+                                    <div className="flex items-center gap-3 opacity-70">
+                                        <Calendar size={16} />
+                                        <div className="flex flex-col">
+                                            <span className="text-xs">{chat.user.isGroup ? 'Дата создания:' : 'Участник с:'}</span>
+                                            <span className="text-xs font-bold text-white/90">
+                                                {chat.user.created_at ? new Date(chat.user.created_at).toLocaleString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Неизвестно'}
+                                            </span>
+                                        </div>
+                                    </div>
                                     <div className="flex items-center gap-3 opacity-70"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
                                 </div>
                                 {chat.user.isGroup && (

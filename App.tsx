@@ -9,7 +9,7 @@ import { CallModal } from './components/CallModal';
 import { Toast, ToastType } from './components/Toast';
 import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
 import { supabase } from './supabaseClient';
-import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck } from 'lucide-react';
+import { AlertTriangle, ServerCrash, RefreshCw, Copy, Check, Terminal, ShieldAlert, Zap, Database, Crown, BadgeCheck, Lock } from 'lucide-react';
 // import { RealtimeChannel } from '@supabase/supabase-js';
 import { NOTIFICATION_SOUNDS, CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK } from './constants';
 
@@ -88,13 +88,19 @@ const THEMES_CONFIG = {
   }
 };
 
-const SQL_FIX_SCRIPT = `-- OPTIMIZED SQL SCRIPT
+const SQL_FIX_SCRIPT = `-- ULTIMATE UPDATE V1.4
 -- RUN THIS IN SUPABASE SQL EDITOR
 
--- 1. Create chat_settings table if not exists (for Pinning/Muting)
+-- 1. Ensure Groups have description
+ALTER TABLE groups ADD COLUMN IF NOT EXISTS description TEXT;
+
+-- 2. Add is_banned to profiles
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;
+
+-- 3. Create chat_settings table if not exists (for Pinning/Muting)
 CREATE TABLE IF NOT EXISTS chat_settings (
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  partner_id UUID NOT NULL, -- Can be a user_id OR a group_id
+  partner_id UUID NOT NULL, 
   is_pinned BOOLEAN DEFAULT FALSE,
   is_muted BOOLEAN DEFAULT FALSE,
   PRIMARY KEY (user_id, partner_id)
@@ -106,17 +112,20 @@ CREATE POLICY "Users can manage their own settings" ON chat_settings
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- 2. Ensure Messages table has group_id
+-- 4. Remove FK Constraint for flexible pinning
+ALTER TABLE chat_settings DROP CONSTRAINT IF EXISTS chat_settings_partner_id_fkey;
+
+-- 5. Messages group_id
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE CASCADE;
 ALTER TABLE messages ALTER COLUMN receiver_id DROP NOT NULL;
 
--- 3. Optimization: Indexing
+-- 6. Indexes for Speed
 CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
 CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id);
 
--- 4. Recreate Data Fetch Function
+-- 7. Recreate Data Fetch Function with Banned Status & Description
 DROP FUNCTION IF EXISTS get_my_messenger_data();
 
 CREATE OR REPLACE FUNCTION get_my_messenger_data()
@@ -125,7 +134,6 @@ DECLARE
   _user_id uuid := auth.uid();
   result json;
 BEGIN
-  -- Fetch groups, messages, and partner profiles in one go logic
   SELECT json_build_object(
     'groups', (
       SELECT COALESCE(json_agg(g_info), '[]'::json)
@@ -143,7 +151,7 @@ BEGIN
         WHERE (sender_id = _user_id OR receiver_id = _user_id)
         AND group_id IS NULL
         ORDER BY created_at DESC
-        LIMIT 1000 -- Optimization limit
+        LIMIT 1000 
       ) m
     ),
     'group_messages', (
@@ -155,7 +163,7 @@ BEGIN
         WHERE gm.user_id = _user_id
         AND msg.group_id IS NOT NULL
         ORDER BY msg.created_at DESC
-        LIMIT 1000 -- Optimization limit
+        LIMIT 1000 
       ) m
     ),
     'settings', (
@@ -216,7 +224,7 @@ const App: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState<Map<string, UserStatus>>(new Map());
 
   const [userProfile, setUserProfile] = useState<UserProfile>({ 
-    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online', isAdmin: false, isVerified: false, created_at: new Date().toISOString()
+    id: '', name: '', phone: '', bio: '', username: '', avatar: '', status: 'online', isAdmin: false, isVerified: false, isBanned: false, created_at: new Date().toISOString()
   });
   
   useEffect(() => { userProfileRef.current = userProfile; }, [userProfile]);
@@ -248,8 +256,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-            // Logic handled in components via callback props usually, 
-            // but for global "exit chat" behavior:
             if (activeChatId) {
                 setActiveChatId(null);
             }
@@ -294,7 +300,6 @@ const App: React.FC = () => {
   }, []);
 
   const playSound = async (url: string, fallbackUrl?: string, loop: boolean = false) => {
-      // STRICT CHECK: If global sound setting is off, do NOT play anything
       if (!settingsRef.current.sound) return;
       
       initAudioContext();
@@ -407,7 +412,15 @@ const App: React.FC = () => {
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
               phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
               isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false,
-              created_at: profile.created_at
+              isBanned: profile.is_banned || false,
+              created_at: profile.created_at,
+              // Map privacy fields if they exist in DB, default to 'everybody'
+              privacy_phone: profile.privacy_phone,
+              privacy_last_seen: profile.privacy_last_seen,
+              privacy_avatar: profile.privacy_avatar,
+              privacy_forwards: profile.privacy_forwards,
+              privacy_calls: profile.privacy_calls,
+              privacy_groups: profile.privacy_groups
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -441,7 +454,6 @@ const App: React.FC = () => {
 
     presenceChannelRef.current = channel;
 
-    // Fix Phantom Online: Untrack on close
     const handleBeforeUnload = async () => {
        await channel.untrack();
     };
@@ -449,13 +461,13 @@ const App: React.FC = () => {
 
     channel
       .on('presence', { event: 'sync' }, () => {
-        // Sync is the source of truth
         const state = channel.presenceState();
         const newOnlineMap = new Map<string, UserStatus>();
         
         Object.entries(state).forEach(([key, value]) => {
             const presenceData = value[0] as any;
             if (key !== userProfile.id) {
+                // Ensure we get the status from the payload
                 newOnlineMap.set(key, presenceData?.status || 'online');
             }
         });
@@ -465,7 +477,9 @@ const App: React.FC = () => {
          if (key === userProfile.id) return;
          setOnlineUsers(prev => {
              const next = new Map(prev);
-             next.set(key, (newPresences[0] as any)?.status || 'online');
+             // Ensure robust status check
+             const status = (newPresences[0] as any)?.status || 'online';
+             next.set(key, status);
              return next;
          });
       })
@@ -489,6 +503,22 @@ const App: React.FC = () => {
         presenceChannelRef.current = null; 
     };
   }, [appState, userProfile.id, isDatabaseError]);
+
+  // --- SYSTEM BROADCAST LISTENER ---
+  useEffect(() => {
+      if (appState !== 'app' || isDatabaseError) return;
+      
+      const channel = supabase.channel('global_system');
+      
+      channel.on('broadcast', { event: 'system_alert' }, ({ payload }) => {
+          const { message, title } = payload;
+          showToast(message, 'info', 'https://cdn.lucide.dev/icon/radio.svg');
+          sendBrowserNotification(title || 'SYSTEM BROADCAST', message);
+          playNotificationSound();
+      }).subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+  }, [appState, isDatabaseError]);
 
   // --- TYPING BROADCAST LISTENER ---
   useEffect(() => {
@@ -519,7 +549,6 @@ const App: React.FC = () => {
 
   const handleSendTypingSignal = async (isTyping: boolean) => {
       if (!activeChatId) return;
-      // Optimistic update for self? No, standard is not to show self.
       await supabase.channel('global_typing').send({ 
           type: 'broadcast', 
           event: 'typing', 
@@ -575,30 +604,35 @@ const App: React.FC = () => {
         const { data, error } = await supabase.rpc('get_my_messenger_data');
         if (error) { setErrorDetail(error.message); setIsDatabaseError(true); return; }
 
-        // Process Groups
         const groups = data.groups || [];
-        // Process Messages (Combined)
         const allMessages = [...(data.private_messages || []), ...(data.group_messages || [])];
-        // Process Settings (Pinned/Muted)
         const chatSettings = data.settings || [];
         const settingsMap = new Map();
         chatSettings.forEach((s: any) => settingsMap.set(s.partner_id, s));
 
         const chatsMap = new Map<string, Chat>();
 
-        // Init Groups
         groups.forEach((g: any) => {
             const s = settingsMap.get(g.id);
             chatsMap.set(g.id, {
                 id: g.id,
-                user: { id: g.id, name: g.name, avatar: g.avatar_url, status: 'online', isGroup: true, username: 'group' },
+                user: { 
+                    id: g.id, 
+                    name: g.name, 
+                    avatar: g.avatar_url, 
+                    status: 'online', 
+                    isGroup: true, 
+                    username: 'group',
+                    created_at: g.created_at, 
+                    bio: g.description 
+                },
                 messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                 isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
-                ownerId: g.created_by // Map created_by to ownerId
+                ownerId: g.created_by,
+                lastReadAt: g.last_read_at // Capture Last Read for Group
             });
         });
 
-        // Identify DM Partners
         const partnerIds = new Set<string>();
         (data.private_messages || []).forEach((m: any) => {
             const pid = m.sender_id === userProfile.id ? m.receiver_id : m.sender_id;
@@ -606,7 +640,6 @@ const App: React.FC = () => {
         });
         partnerIds.delete(userProfile.id);
 
-        // Fetch DM Profiles
         if (partnerIds.size > 0) {
             const { data: profiles } = await supabase.from('profiles').select('*').in('id', Array.from(partnerIds));
             profiles?.forEach(p => {
@@ -619,12 +652,12 @@ const App: React.FC = () => {
                         username: p.username, isGroup: false, isVerified: p.is_verified, bio: p.bio, email: p.email, created_at: p.created_at 
                     },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
-                    isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false
+                    isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
+                    lastReadAt: null // DMs use is_read boolean
                 });
             });
         }
 
-        // Distribute Messages
         allMessages.forEach((msg: any) => {
             const chatId = msg.group_id || (msg.sender_id === userProfile.id ? msg.receiver_id : msg.sender_id);
             const chat = chatsMap.get(chatId);
@@ -641,7 +674,19 @@ const App: React.FC = () => {
                 };
                 if (!chat.messages.some(ex => ex.id === m.id)) chat.messages.push(m);
                 if (!chat.lastMessage.timestamp || m.timestamp > chat.lastMessage.timestamp) chat.lastMessage = m;
-                if (!isMe && !msg.is_read) chat.unreadCount += 1;
+                
+                // UNREAD LOGIC FIX
+                if (!isMe) {
+                    if (chat.user.isGroup) {
+                        // For groups: check if message time > last_read_at
+                        if (!chat.lastReadAt || new Date(msg.created_at) > new Date(chat.lastReadAt)) {
+                            chat.unreadCount += 1;
+                        }
+                    } else {
+                        // For DMs: use standard boolean
+                        if (!msg.is_read) chat.unreadCount += 1;
+                    }
+                }
             }
         });
 
@@ -651,6 +696,7 @@ const App: React.FC = () => {
         }
 
         setChats(Array.from(chatsMap.values()).sort((a,b) => {
+            // STRICT SORTING PRIORITY: PINNED > DATE
             if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
             return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
         }));
@@ -673,7 +719,7 @@ const App: React.FC = () => {
           const chatId = newMsg.group_id || (isMine ? newMsg.receiver_id : newMsg.sender_id);
           const chat = chatsRef.current.find(c => c.id === chatId);
 
-          if (!isMine && chat && !chat.isMuted) { // CHECK MUTE STATUS
+          if (!isMine && chat && !chat.isMuted) { 
               playNotificationSound();
               const senderName = chat?.user.isGroup ? `${chat.user.name}` : (chat?.user.name || 'Новое сообщение');
               const notificationText = newMsg.type === 'image' ? 'Фото' : newMsg.type === 'audio' ? 'Голосовое' : newMsg.type === 'system' ? newMsg.content : newMsg.content;
@@ -703,7 +749,8 @@ const App: React.FC = () => {
              }
              
              updatedChats[chatIndex] = chat;
-             // Strict sort every time new message arrives
+             
+             // STRICT RE-SORTING ON EVERY MESSAGE INSERT
              return updatedChats.sort((a,b) => {
                  if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                  return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
@@ -736,7 +783,21 @@ const App: React.FC = () => {
               if (!currentProfile.isVerified && updatedProfile.is_verified) {
                   showToast("Аккаунт верифицирован!", "success");
               }
-              setUserProfile(prev => ({ ...prev, name: updatedProfile.full_name, username: updatedProfile.username, bio: updatedProfile.bio, avatar: updatedProfile.avatar_url, isAdmin: updatedProfile.is_admin, isVerified: updatedProfile.is_verified }));
+              // Check for Ban
+              if(updatedProfile.is_banned && !currentProfile.isBanned) {
+                  // User just got banned
+              }
+              
+              setUserProfile(prev => ({ 
+                  ...prev, 
+                  name: updatedProfile.full_name, 
+                  username: updatedProfile.username, 
+                  bio: updatedProfile.bio, 
+                  avatar: updatedProfile.avatar_url, 
+                  isAdmin: updatedProfile.is_admin, 
+                  isVerified: updatedProfile.is_verified,
+                  isBanned: updatedProfile.is_banned
+              }));
           } else {
              setChats(prev => prev.map(c => {
                  if (c.user.id === updatedProfile.id) {
@@ -748,22 +809,41 @@ const App: React.FC = () => {
       }
   }, [fetchChats]);
 
+  // Separate Effect to handle Group Updates (Description changes)
+  const handleUpdateGroup = useCallback((updatedGroup: any) => {
+      setChats(prev => prev.map(c => {
+          if (c.id === updatedGroup.id) {
+              return {
+                  ...c,
+                  user: {
+                      ...c.user,
+                      name: updatedGroup.name,
+                      avatar: updatedGroup.avatar_url,
+                      bio: updatedGroup.description // Map description to bio
+                  }
+              };
+          }
+          return c;
+      }));
+  }, []);
+
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
     const channel = supabase.channel('updates');
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, handleRealtimePayload);
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload: any) => {
-        // Reload if I am added or removed from a group, or someone leaves my group
-        // Just reload, easier than patching complex state
         fetchChats();
     });
-    // Add listener for group deletion
     channel.on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'groups' }, (payload: any) => {
         setChats(prev => prev.filter(c => c.id !== payload.old.id));
         if (activeChatId === payload.old.id) setActiveChatId(null);
     });
+    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'groups' }, (payload: any) => {
+        handleUpdateGroup(payload.new);
+    });
 
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimePayload);
+    
     // Listen for Chat Setting changes (Pin/Mute) from other devices
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_settings' }, (payload: any) => {
         if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id) fetchChats();
@@ -771,7 +851,7 @@ const App: React.FC = () => {
 
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats, activeChatId]);
+  }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats, activeChatId, handleUpdateGroup]);
 
   const sendMessage = async (chatId: string, text: string, type: MessageType = 'text', mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => {
     const isGroup = chats.find(c => c.id === chatId)?.user.isGroup;
@@ -797,10 +877,8 @@ const App: React.FC = () => {
       await supabase.channel(`signaling:${chatId}`).send({ type: 'broadcast', event: 'call-request', payload: { callerId: userProfile.id, type } });
   };
 
-  // --- CHAT ACTIONS (Pin / Mute / Delete Local) ---
   const handleChatAction = async (chatId: string, action: 'pin' | 'mute' | 'delete') => {
       if (action === 'delete') {
-          // Local Hide (For real delete, logic depends on requirements)
           setChats(prev => prev.filter(c => c.id !== chatId));
           if (activeChatId === chatId) setActiveChatId(null);
           return;
@@ -825,7 +903,6 @@ const App: React.FC = () => {
           });
       });
 
-      // DB Upsert
       const { error } = await supabase.from('chat_settings').upsert({
           user_id: userProfile.id,
           partner_id: chatId,
@@ -836,13 +913,13 @@ const App: React.FC = () => {
       if (error) {
           console.error("Chat Action Error", error);
           showToast("Ошибка сохранения настроек чата", "error");
-          fetchChats(); // Revert on error
+          // Revert optimistic update
+          fetchChats(); 
       } else {
           showToast(action === 'pin' ? (isPinned ? 'Чат закреплен' : 'Чат откреплен') : (isMuted ? 'Уведомления выключены' : 'Уведомления включены'), "success");
       }
   };
 
-  // --- DELETE GROUP (For Creators) ---
   const handleDeleteGroup = async (groupId: string) => {
       if (!confirm("Внимание! Вы удаляете группу. Это действие необратимо и удалит чат у всех участников.")) return;
       
@@ -860,10 +937,8 @@ const App: React.FC = () => {
   const handleLeaveGroup = async (groupId: string) => {
       if (!confirm("Вы действительно хотите покинуть эту группу?")) return;
 
-      // 1. Send system message
       await sendMessage(groupId, `${userProfile.name} покинул(а) группу`, 'system');
       
-      // 2. Remove member
       const { error } = await supabase.from('group_members')
           .delete()
           .eq('group_id', groupId)
@@ -875,6 +950,18 @@ const App: React.FC = () => {
           setChats(prev => prev.filter(c => c.id !== groupId));
           setActiveChatId(null);
           showToast("Вы покинули группу", "success");
+      }
+  };
+
+  // Group Update Handler (Description)
+  const handleUpdateGroupInfo = async (groupId: string, newDescription: string) => {
+      try {
+          const { error } = await supabase.from('groups').update({ description: newDescription }).eq('id', groupId);
+          if (error) throw error;
+          showToast("Информация о группе обновлена", "success");
+      } catch(e) {
+          console.error(e);
+          showToast("Ошибка обновления", "error");
       }
   };
 
@@ -909,7 +996,14 @@ const App: React.FC = () => {
           const { error } = await supabase.from('profiles').update({
               full_name: updatedProfile.name,
               username: updatedProfile.username,
-              bio: updatedProfile.bio
+              bio: updatedProfile.bio,
+              // Privacy Settings update
+              privacy_phone: updatedProfile.privacy_phone,
+              privacy_last_seen: updatedProfile.privacy_last_seen,
+              privacy_avatar: updatedProfile.privacy_avatar,
+              privacy_forwards: updatedProfile.privacy_forwards,
+              privacy_calls: updatedProfile.privacy_calls,
+              privacy_groups: updatedProfile.privacy_groups
           }).eq('id', updatedProfile.id);
 
           if (error) {
@@ -925,12 +1019,47 @@ const App: React.FC = () => {
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
+  // Broadcast function for Admin (via System Channel)
+  const handleBroadcast = async (message: string) => {
+      const channel = supabase.channel('global_system');
+      channel.subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+              await channel.send({
+                  type: 'broadcast',
+                  event: 'system_alert',
+                  payload: { message, title: 'SYSTEM BROADCAST' }
+              });
+              supabase.removeChannel(channel);
+          }
+      });
+  };
+
   const retryConnection = () => {
       setIsDatabaseError(false);
       fetchChats();
   };
 
   const activeChat = chats.find(c => c.id === activeChatId) || (tempChatUser?.id === activeChatId ? { id: activeChatId, user: tempChatUser, messages: [], unreadCount: 0, lastMessage: {} as Message } : null);
+
+  // BANNED SCREEN
+  if (userProfile.isBanned) {
+      return (
+          <div className="fixed inset-0 flex items-center justify-center bg-black text-white z-[9999]">
+              <div className="text-center p-8 bg-white/5 border border-red-500/30 rounded-3xl max-w-sm">
+                  <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
+                      <Lock size={40} className="text-red-500" />
+                  </div>
+                  <h1 className="text-2xl font-black uppercase tracking-widest text-red-500 mb-2">Access Denied</h1>
+                  <p className="text-sm text-white/60 leading-relaxed mb-6">
+                      Ваш аккаунт был заблокирован администратором за нарушение правил сообщества.
+                  </p>
+                  <button onClick={() => window.location.reload()} className="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all">
+                      Попробовать снова
+                  </button>
+              </div>
+          </div>
+      );
+  }
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
@@ -968,12 +1097,12 @@ const App: React.FC = () => {
                       </div>
                   </div>
               ) : (
-                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={handleChatAction} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} />
+                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={handleChatAction} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} onBroadcast={userProfile.isAdmin ? handleBroadcast : undefined} />
               )}
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
-                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={handleSendTypingSignal} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={handleLeaveGroup} onDeleteGroup={handleDeleteGroup} typingUserNames={typingUsers[activeChat.id] || []} />
+                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={handleSendTypingSignal} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={handleLeaveGroup} onDeleteGroup={handleDeleteGroup} typingUserNames={typingUsers[activeChat.id] || []} onUpdateGroupInfo={handleUpdateGroupInfo} />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}
