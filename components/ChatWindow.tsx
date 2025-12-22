@@ -1,16 +1,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy, Users, Search, Plus, Save, MapPin } from 'lucide-react';
-import { Chat, Message, MessageType, CallType, UserStatus, User as UserType } from '../types';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Trash2, StopCircle, X, Edit2, Crown, LogOut, Check, Loader2, Reply, BadgeCheck, Mail, Calendar, User, ArrowDown, Users, Search, Plus, Save, MapPin } from 'lucide-react';
+import { Chat, MessageType, CallType, UserStatus, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
+import { MessageItem } from './chat/MessageItem';
 
 const MDiv = motion.div as any;
 const MImg = motion.img as any;
 const MButton = motion.button as any;
-const MSvg = motion.svg as any;
-const MPath = motion.path as any;
 
 // PLACEHOLDER API KEY - USER MUST REPLACE WITH THEIR OWN
 const YANDEX_API_KEY = '288c46c6-893f-41bc-b7a6-7f7ec750725a'; 
@@ -40,207 +39,6 @@ interface ChatWindowProps {
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
 const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😸","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫷","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
 
-const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = React.memo(({ isRead, isOwn }) => {
-  if (!isOwn) return null;
-  return (
-    <div className="flex items-center justify-center w-3.5 h-3.5 relative ml-0.5">
-       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full" initial="hidden" animate="visible">
-         <MPath d="M20 6L9 17l-5-5" fill="none" stroke={isRead ? "#ff0033" : "rgba(255,255,255,0.7)"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" variants={{ hidden: { pathLength: 0, opacity: 0 }, visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3 } } }} />
-       </MSvg>
-       <MSvg viewBox="0 0 24 24" className="absolute inset-0 w-full h-full left-[4px] -top-[1px]" initial="hidden" animate={isRead ? "visible" : "hidden"}>
-         <MPath d="M20 6L9 17l-5-5" fill="none" stroke="#ff0033" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" variants={{ hidden: { pathLength: 0, opacity: 0 }, visible: { pathLength: 1, opacity: 1, transition: { duration: 0.3, delay: 0.1 } } }} />
-       </MSvg>
-    </div>
-  );
-});
-
-const AudioPlayer: React.FC<{ url: string, duration?: string }> = React.memo(({ url, duration }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    const updateProgress = () => setProgress((audio.currentTime / audio.duration) * 100);
-    const handleEnded = () => { setIsPlaying(false); setProgress(0); };
-    audio.addEventListener('timeupdate', updateProgress);
-    audio.addEventListener('ended', handleEnded);
-    return () => { audio.removeEventListener('timeupdate', updateProgress); audio.removeEventListener('ended', handleEnded); };
-  }, []);
-
-  const togglePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isPlaying) audioRef.current?.pause(); else audioRef.current?.play();
-    setIsPlaying(!isPlaying);
-  };
-
-  return (
-    <div className="flex items-center gap-3 py-1.5 px-1 min-w-[180px]">
-      <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0 active:scale-95">
-        {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" className="ml-0.5"/>}
-      </button>
-      <div className="flex-1 space-y-1">
-        <div className="h-1 bg-white/10 rounded-full overflow-hidden w-full"><div className="h-full bg-white transition-all duration-100" style={{ width: `${progress}%` }} /></div>
-        <div className="flex justify-between items-center opacity-50 text-[9px] font-bold">
-           <span>{isPlaying ? `${Math.floor(audioRef.current?.currentTime || 0)}s` : (duration || '0:00')}</span>
-           <span>Voice</span>
-        </div>
-      </div>
-      <audio ref={audioRef} src={url} className="hidden" />
-    </div>
-  );
-});
-
-const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactNode, onReply: () => void, isMe: boolean }) => {
-    const x = useMotionValue(0);
-    const opacity = useTransform(x, [-50, 0], [1, 0]);
-    const scale = useTransform(x, [-50, 0], [1, 0.5]);
-
-    return (
-        <div className="relative w-full">
-            <MDiv style={{ opacity, scale }} className="absolute right-[-40px] top-1/2 -translate-y-1/2 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white z-0">
-                <Reply size={16} />
-            </MDiv>
-            <MDiv drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.3, right: 0.05 }} onDragEnd={(e: any, info: any) => { if (info.offset.x < -60) onReply(); }} className={`relative z-10 w-full flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                {children}
-            </MDiv>
-        </div>
-    );
-};
-
-const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction }: any) => {
-    const getSenderInfo = (senderId: string) => {
-        if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
-        if (chatUser.isGroup && groupMembers.length > 0) {
-            const member = groupMembers.find((m: any) => m.user.id === senderId)?.user;
-            if (member) return member;
-        }
-        if (!chatUser.isGroup && senderId === chatUser.id) return chatUser;
-        return { name: 'Unknown', avatar: '', id: senderId };
-    };
-
-    const senderInfo = getSenderInfo(msg.senderId);
-    const replyParent = msg.replyToId ? chatMessages.find((m: any) => m.id === msg.replyToId) : null;
-    const replySender = replyParent ? getSenderInfo(replyParent.senderId) : null;
-
-    const reactionsGrouped = (msg.reactions || []).reduce((acc: any, r: any) => {
-        if (!acc[r.emoji]) acc[r.emoji] = { count: 0, hasReacted: false };
-        acc[r.emoji].count += 1;
-        if (r.senderId === myId) acc[r.emoji].hasReacted = true;
-        return acc;
-    }, {} as Record<string, { count: number, hasReacted: boolean }>);
-
-    if (msg.type === 'system') {
-        return (
-            <div className="flex justify-center my-4">
-                <span className="text-[10px] bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white/50 font-medium">
-                    {msg.text}
-                </span>
-            </div>
-        );
-    }
-
-    // Parse location if it's a location type
-    let locationData = null;
-    if (msg.type === 'location' && msg.text) {
-        try {
-            const [lat, lon] = msg.text.split(',');
-            if (lat && lon) locationData = { lat, lon };
-        } catch (e) {}
-    }
-
-    return (
-        <div id={`msg-${msg.id}`} className="w-full">
-            <SwipeableMessage isMe={isMe} onReply={() => onReply(msg)}>
-                <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
-                    {!isMe && chatUser.isGroup && (
-                        <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10">
-                            {senderInfo && senderInfo.avatar ? <img src={senderInfo.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-gray-700" />}
-                        </div>
-                    )}
-                    <div 
-                        onContextMenu={(e) => onContextMenu(e, msg)}
-                        className={`max-w-[85%] md:max-w-[70%] p-2 rounded-2xl relative shadow-sm border border-white/5 cursor-pointer group ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-1 ring-vellor-red/50' : ''}`}
-                    >
-                        {replyParent && (
-                            <div onClick={(e) => { e.stopPropagation(); scrollToMessage(replyParent.id); }} className="mb-1.5 rounded-lg bg-black/20 p-1.5 flex gap-2 items-center border-l-2 border-vellor-red/70 overflow-hidden cursor-pointer hover:bg-black/30 transition-colors">
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[10px] font-bold text-vellor-red truncate">{replySender?.name || 'Unknown'}</p>
-                                    <p className="text-[10px] text-white/60 truncate">{replyParent.type === 'image' ? 'Фото' : replyParent.type === 'audio' ? 'Голосовое' : replyParent.text}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {!isMe && chatUser.isGroup && (
-                            <div className="flex items-center gap-1 mb-1 ml-1"><p className="text-[10px] font-bold text-vellor-red">{senderInfo?.name}</p></div>
-                        )}
-
-                        {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}
-                        
-                        {msg.type === 'audio' && <AudioPlayer url={msg.mediaUrl || ''} duration={msg.duration} />}
-                        {msg.type === 'image' && (
-                            <div className="relative group/img">
-                                <MImg src={msg.mediaUrl} className="max-w-full max-h-[300px] w-auto h-auto rounded-lg border border-white/10 object-cover" />
-                                <button onClick={(e) => { e.stopPropagation(); setZoomedImage(msg.mediaUrl || ''); }} className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity"><ZoomIn size={24} className="text-white"/></button>
-                            </div>
-                        )}
-                        {msg.type === 'file' && (
-                            <div className="flex items-center gap-3 p-2 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                                <div className="p-2 bg-vellor-red/20 text-vellor-red rounded-lg"><FileText size={24}/></div>
-                                <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate max-w-[150px]">{msg.fileName}</p><p className="text-[9px] opacity-50 uppercase font-black">{msg.fileSize || 'FILE'}</p></div>
-                                <a href={msg.mediaUrl} download onClick={(e) => e.stopPropagation()} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><Download size={16}/></a>
-                            </div>
-                        )}
-                        {msg.type === 'location' && locationData && (
-                            <div className="flex flex-col gap-2 p-1">
-                                <a href={`https://yandex.ru/maps/?pt=${locationData.lon},${locationData.lat}&z=16&l=map`} target="_blank" rel="noreferrer" className="block relative rounded-xl overflow-hidden border border-white/10 shadow-lg group/map">
-                                    <img 
-                                        src={`https://static-maps.yandex.ru/1.x/?ll=${locationData.lon},${locationData.lat}&z=15&l=map&pt=${locationData.lon},${locationData.lat},pm2rdm&size=450,250&theme=dark`} 
-                                        alt="Location" 
-                                        className="w-full h-auto min-h-[150px] object-cover bg-gray-800"
-                                    />
-                                    <div className="absolute inset-0 bg-black/20 group-hover/map:bg-transparent transition-colors pointer-events-none" />
-                                    <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-md px-2 py-1 rounded-md text-[10px] text-white flex items-center gap-1">
-                                        <MapPin size={10} className="text-vellor-red" /> Геопозиция
-                                    </div>
-                                </a>
-                            </div>
-                        )}
-                        {msg.type === 'text' && <p className="whitespace-pre-wrap leading-snug px-2 py-1 text-[15px]">{msg.text}</p>}
-                        
-                        <div className="flex items-center justify-end gap-1 mt-0.5 px-1 opacity-40 select-none">
-                            {msg.isEdited && <span className="text-[9px] mr-1">изм.</span>}
-                            <span className="text-[10px]">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                            {isMe && <MessageStatus isRead={msg.isRead} isOwn={true} />}
-                        </div>
-
-                        <div className="absolute -bottom-3 left-0 flex gap-1 z-10 px-1">
-                            <AnimatePresence>
-                                {Object.entries(reactionsGrouped).map(([emoji, data]: any) => (
-                                    <MButton key={emoji} initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={(e: any) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }} className={`px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm backdrop-blur-md border border-white/10 text-[10px] ${data.hasReacted ? 'bg-vellor-red/20 border-vellor-red/50 text-white' : 'bg-black/60 text-white/80'}`}>
-                                        <span>{emoji}</span>{data.count > 1 && <span className="font-bold">{data.count}</span>}
-                                    </MButton>
-                                ))}
-                            </AnimatePresence>
-                        </div>
-                    </div>
-                </div>
-            </SwipeableMessage>
-        </div>
-    );
-}, (prev, next) => {
-    return (
-        prev.msg.id === next.msg.id &&
-        prev.msg.isRead === next.msg.isRead &&
-        prev.msg.reactions?.length === next.msg.reactions?.length &&
-        prev.msg.isPinned === next.msg.isPinned &&
-        prev.msg.isEdited === next.msg.isEdited &&
-        prev.msg.text === next.msg.text &&
-        prev.groupMembers.length === next.groupMembers.length
-    );
-});
-
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
     onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup, onDeleteGroup, typingUserNames = [], onUpdateGroupInfo
@@ -254,7 +52,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [replyingTo, setReplyingTo] = useState<any | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
   const [pendingFile, setPendingFile] = useState<{file: File, url: string, type: MessageType} | null>(null);
@@ -270,7 +68,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [isEditingDesc, setIsEditingDesc] = useState(false);
   const [editDescText, setEditDescText] = useState("");
 
-  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: any } | null>(null);
   const [uploadingType, setUploadingType] = useState<MessageType | null>(null);
 
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -409,7 +207,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, message: Message) => {
+  const handleContextMenu = useCallback((e: React.MouseEvent, message: any) => {
       e.preventDefault();
       let x = e.clientX;
       let y = e.clientY;
@@ -452,8 +250,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       navigator.geolocation.getCurrentPosition(
           (position) => {
               const { latitude, longitude } = position.coords;
-              // Send location as text "lat,lon" with type "location"
-              // Media URL will be the static map image
               const staticMapUrl = `https://static-maps.yandex.ru/1.x/?ll=${longitude},${latitude}&z=15&l=map&pt=${longitude},${latitude},pm2rdm&theme=dark`;
               
               onSendMessage(
@@ -478,9 +274,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     if (!inputText.trim() && !pendingFile) return; 
     if (isUploading) return;
 
-    // ANTI-SPAM CHECK (Throttle)
     const now = Date.now();
-    if (now - lastMessageTimeRef.current < 300) { // Max 3-4 messages per second
+    if (now - lastMessageTimeRef.current < 300) { 
         showToast("Помедленнее! Вы отправляете слишком часто.", "warning");
         return;
     }
@@ -520,7 +315,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     const val = e.target.value;
     setInputText(val);
     
-    // Throttle typing signal as well
     if (!typingTimeoutRef.current) {
         onSendTypingSignal(true);
         typingTimeoutRef.current = setTimeout(() => { 
@@ -530,7 +324,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     }
   };
 
-  // ... (Paste, Recording, File Upload Handlers - unchanged) ...
   const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
     if (e.clipboardData && e.clipboardData.files.length > 0) {
         e.preventDefault();
@@ -611,7 +404,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
   const isOwner = chat.ownerId === myId;
 
-  // Logic for Typing Text
   const typingText = typingUserNames.length > 0
       ? (typingUserNames.length === 1 
           ? `${typingUserNames[0]} печатает...` 
@@ -653,13 +445,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
         </div>
 
-        {/* ... (Pinned Message, Messages List, Scroll Button - unchanged logic, just moved code block) ... */}
         <AnimatePresence>
             {pinnedMessage && (
                 <MDiv onClick={() => scrollToMessage(pinnedMessage.id)} initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20">
                     <div className="w-0.5 h-6 bg-vellor-red rounded-full" />
                     <div className="flex-1 min-w-0"><p className="text-[9px] font-bold text-vellor-red uppercase">Pinned</p><p className="text-[11px] text-white/80 truncate">{pinnedMessage.text || 'Media'}</p></div>
-                    <Pin size={12} className="text-vellor-red fill-vellor-red rotate-45" />
                 </MDiv>
             )}
         </AnimatePresence>
@@ -676,7 +466,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </button>
         )}
 
-        {/* ... (Context Menu, Zoomed Image - unchanged) ... */}
         <AnimatePresence>
             {contextMenu && (
                 <MDiv initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-[100] w-60 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1" onClick={(e: any) => e.stopPropagation()}>
@@ -684,18 +473,18 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {QUICK_REACTIONS.map(emoji => <MButton key={emoji} whileHover={{ scale: 1.2 }} onClick={() => handleToggleReaction(contextMenu.message.id, emoji)} className="text-xl p-1">{emoji}</MButton>)}
                     </div>
                     {contextMenu.message.type === 'text' && (
-                         <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
-                            <Copy size={14} className="text-white/60" /> Копировать
+                         <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95 text-white">
+                             Копировать
                         </button>
                     )}
-                    <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
+                    <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95 text-white">
                         <Reply size={14} className="text-white/60" /> Ответить
                     </button>
-                    <button onClick={() => { onPinMessage(contextMenu.message.id, contextMenu.message.isPinned || false); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
-                        <Pin size={14} className={contextMenu.message.isPinned ? "text-vellor-red" : "text-white/60"} /> {contextMenu.message.isPinned ? 'Открепить' : 'Закрепить'}
+                    <button onClick={() => { onPinMessage(contextMenu.message.id, contextMenu.message.isPinned || false); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95 text-white">
+                        {contextMenu.message.isPinned ? 'Открепить' : 'Закрепить'}
                     </button>
                     {(contextMenu.message.senderId === 'me' || contextMenu.message.senderId === myId) && contextMenu.message.type === 'text' && (
-                        <button onClick={() => { setEditingMessageId(contextMenu.message.id); setInputText(contextMenu.message.text); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95"><Edit2 size={14} className="text-white/60" /> Изменить</button>
+                        <button onClick={() => { setEditingMessageId(contextMenu.message.id); setInputText(contextMenu.message.text); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95 text-white"><Edit2 size={14} className="text-white/60" /> Изменить</button>
                     )}
                     <div className="h-px bg-white/10 my-1" />
                     <button onClick={() => { onDeleteMessage(contextMenu.message.id); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors active:scale-95"><Trash2 size={14} /> Удалить</button>
@@ -745,7 +534,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </div>
                                 <div className="relative group">
                                     <Search className="absolute left-3 top-3 text-white/30" size={16} />
-                                    <input autoFocus value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} placeholder="Поиск по юзернейму..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all" />
+                                    <input autoFocus value={memberSearchQuery} onChange={(e) => setMemberSearchQuery(e.target.value)} placeholder="Поиск по юзернейму..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all text-white" />
                                 </div>
                                 <div className="space-y-2">
                                     {isSearchingMembers ? <div className="flex justify-center p-4"><Loader2 className="animate-spin text-white/30" /></div> : 
@@ -756,7 +545,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                             <div className="p-1.5 bg-vellor-red/20 text-vellor-red rounded-full"><Plus size={14}/></div>
                                         </button>
                                     ))}
-                                    {!isSearchingMembers && memberSearchQuery && memberSearchResults.length === 0 && <p className="text-center text-[10px] opacity-30">Никого не найдено</p>}
+                                    {!isSearchingMembers && memberSearchQuery && memberSearchResults.length === 0 && <p className="text-center text-[10px] opacity-30 text-white">Никого не найдено</p>}
                                 </div>
                             </MDiv>
                         ) : (
@@ -774,7 +563,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                                 rows={3}
                                             />
                                             <div className="flex gap-2 justify-end">
-                                                <button onClick={() => setIsEditingDesc(false)} className="px-3 py-1 bg-white/5 rounded-lg text-xs hover:bg-white/10">Отмена</button>
+                                                <button onClick={() => setIsEditingDesc(false)} className="px-3 py-1 bg-white/5 rounded-lg text-xs hover:bg-white/10 text-white">Отмена</button>
                                                 <button onClick={saveGroupDescription} className="px-3 py-1 bg-vellor-red rounded-lg text-xs font-bold text-white hover:bg-red-600 flex items-center gap-1"><Save size={12}/> Сохранить</button>
                                             </div>
                                         </div>
@@ -821,9 +610,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
                                 <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
                                     {!chat.user.isGroup && (
-                                        <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
+                                        <div className="flex items-center gap-3 opacity-70 text-white"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
                                     )}
-                                    <div className="flex items-center gap-3 opacity-70">
+                                    <div className="flex items-center gap-3 opacity-70 text-white">
                                         <Calendar size={16} />
                                         <div className="flex flex-col">
                                             <span className="text-xs">{chat.user.isGroup ? 'Дата создания:' : 'Участник с:'}</span>
@@ -832,7 +621,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-3 opacity-70"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
+                                    <div className="flex items-center gap-3 opacity-70 text-white"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
                                 </div>
                                 {chat.user.isGroup && (
                                     <>
@@ -856,7 +645,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* BOTTOM INPUT - OPTIMIZED FOR MOBILE SAFARI */}
+        {/* BOTTOM INPUT */}
         <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-[env(safe-area-inset-bottom)]">
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">
@@ -891,9 +680,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <AnimatePresence>
                             {showAttachments && (
                                 <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-14 left-0 w-48 bg-black/95 border border-white/10 p-1.5 rounded-2xl shadow-2xl overflow-hidden z-[100]">
-                                    <button onClick={() => { setUploadingType('image'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
-                                    <button onClick={() => { setUploadingType('file'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><FileText size={16} className="text-vellor-red"/> Файл</button>
-                                    <button onClick={handleSendLocation} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><MapPin size={16} className="text-vellor-red"/> Локация</button>
+                                    <button onClick={() => { setUploadingType('image'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95 text-white"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
+                                    <button onClick={() => { setUploadingType('file'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95 text-white"><FileText size={16} className="text-vellor-red"/> Файл</button>
+                                    <button onClick={handleSendLocation} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95 text-white"><MapPin size={16} className="text-vellor-red"/> Локация</button>
                                 </MDiv>
                             )}
                         </AnimatePresence>
@@ -921,7 +710,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 >
                                     <div className="p-3 border-b border-white/5 flex justify-between items-center">
                                         <span className="text-[10px] font-bold uppercase tracking-widest text-white/50">Emoji</span>
-                                        <button onClick={() => setShowEmojis(false)}><X size={14}/></button>
+                                        <button onClick={() => setShowEmojis(false)} className="text-white"><X size={14}/></button>
                                     </div>
                                     <div className="flex-1 overflow-y-auto custom-scrollbar p-2 grid grid-cols-7 gap-1">
                                         {EMOJI_LIST.map((emoji, idx) => (
@@ -936,7 +725,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     {inputText.trim() || pendingFile ? (
                         <button 
                             onClick={handleSend} 
-                            onMouseDown={(e) => e.preventDefault()} // Critical fix for Mobile Safari blur issue
+                            onMouseDown={(e) => e.preventDefault()} 
                             disabled={isUploading} 
                             className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100 touch-manipulation"
                             type="button"

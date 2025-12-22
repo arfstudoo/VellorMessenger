@@ -504,7 +504,7 @@ const App: React.FC = () => {
     };
   }, [appState, userProfile.id, isDatabaseError]);
 
-  // --- SYSTEM BROADCAST LISTENER ---
+  // --- SYSTEM BROADCAST LISTENER (RELIABLE) ---
   useEffect(() => {
       if (appState !== 'app' || isDatabaseError) return;
       
@@ -1022,7 +1022,7 @@ const App: React.FC = () => {
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
-  // Broadcast function for Admin (via System Channel) - FIXED
+  // BROADCAST FUNCTION - FIX: Ensure channel subscribes before sending
   const handleBroadcast = async (message: string): Promise<boolean> => {
       try {
           const channel = supabase.channel('global_system');
