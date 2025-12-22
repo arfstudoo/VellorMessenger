@@ -81,6 +81,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
   const pinnedMessage = chat.messages.find(m => m.isPinned);
 
+  // ESCAPE KEY HANDLER
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showUserInfo) setShowUserInfo(false);
+        else if (zoomedImage) setZoomedImage(null);
+        else onBack();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showUserInfo, zoomedImage, onBack]);
+
   const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
       if (messagesContainerRef.current) {
           const { scrollHeight, clientHeight } = messagesContainerRef.current;
@@ -144,6 +157,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       }
   };
 
+  // ... (Rest of component functions like useEffect, handlers etc.) ...
   useEffect(() => {
       if (!isAddingMember || !memberSearchQuery.trim()) {
           setMemberSearchResults([]);
@@ -411,7 +425,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const typingText = typingUserNames.length > 0
       ? (typingUserNames.length === 1 
           ? `${typingUserNames[0]} печатает...` 
-          : `${typingUserNames.join(', ')} печатают...`)
+          : `${typingUserNames.length} чел. печатают...`)
       : (chat.user.isGroup ? 'группа' : (realtimeStatus === 'online' ? 'в сети' : 'был(а) недавно'));
 
   return (
@@ -428,6 +442,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             onUpdateProfile={() => {}} // No-op, readonly
                             onSaveProfile={async () => {}} // No-op
                             onClose={() => setSelectedMemberProfile(null)}
+                            isReadOnly={true}
                         />
                         {/* Overlay to block editing */}
                         <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black via-black/80 to-transparent z-30 flex items-center justify-center">
@@ -439,6 +454,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </AnimatePresence>
 
         <div className="h-14 flex items-center justify-between px-2 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
+            {/* ... rest of the header ... */}
             <div className="flex items-center gap-1 md:gap-4 overflow-hidden">
                 {isMobile && <button onClick={onBack} className="text-white p-3 -ml-2 hover:bg-white/5 rounded-full active:scale-95 transition-transform"><ArrowLeft size={22}/></button>}
                 <div className="relative cursor-pointer shrink-0" onClick={() => setShowUserInfo(true)}>
@@ -469,6 +485,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
         </div>
 
+        {/* ... Rest of ChatWindow (Message List, Input, etc) ... */}
         <AnimatePresence>
             {pinnedMessage && (
                 <MDiv onClick={() => scrollToMessage(pinnedMessage.id)} initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20">
@@ -498,13 +515,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             ))}
         </div>
         
-        {/* ... (Rest of the component remains largely unchanged) ... */}
         {showScrollButton && (
             <button onClick={() => scrollToBottom('smooth')} className="absolute bottom-20 right-4 z-50 p-2 bg-black/80 border border-white/10 rounded-full text-white shadow-xl hover:bg-vellor-red transition-colors animate-bounce">
                 <ArrowDown size={20} />
             </button>
         )}
 
+        {/* Context Menu, Zoom Image, Side Panel, Input Area... (Standard Components) */}
         <AnimatePresence>
             {contextMenu && (
                 <MDiv initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-[100] w-60 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1" onClick={(e: any) => e.stopPropagation()}>
@@ -547,8 +564,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
                         <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); setIsEditingDesc(false); }} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={18}/></button>
                     </div>
-                    
-                    {/* INFO CONTENT */}
+                    {/* ... (Sidebar content remains same) ... */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center">
                         <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl group">
                             <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
@@ -564,7 +580,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             <p className="text-sm text-white/40 font-mono">@{chat.user.username}</p>
                         </div>
                         
-                        {/* MEMBER SEARCH VIEW */}
                         {isAddingMember ? (
                             <MDiv initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-4">
                                 <div className="flex items-center gap-2 mb-2">
@@ -588,7 +603,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 </div>
                             </MDiv>
                         ) : (
-                            // STANDARD INFO VIEW
                             <div className="w-full space-y-3">
                                 <div className="p-5 bg-white/5 border border-white/5 rounded-2xl relative group/desc">
                                     <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2"><Info size={12}/> О себе</h4>
@@ -690,7 +704,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
 
         {/* BOTTOM INPUT */}
         <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-[env(safe-area-inset-bottom)]">
-             {/* Input Area... (Same as before) */}
+             {/* ... Input elements ... */}
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">
                      <div className="flex items-center gap-3 overflow-hidden">

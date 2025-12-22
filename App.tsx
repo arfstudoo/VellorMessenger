@@ -8,6 +8,7 @@ import { ChatWindow } from './components/ChatWindow';
 import { CallModal } from './components/CallModal';
 import { Toast, ToastType } from './components/Toast';
 import { MaintenanceOverlay } from './components/MaintenanceOverlay';
+import { TitleBar } from './components/TitleBar';
 import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
 import { supabase } from './supabaseClient';
 import { ShieldAlert, RefreshCw, Lock } from 'lucide-react';
@@ -343,16 +344,29 @@ const App: React.FC = () => {
       return () => { supabase.removeChannel(channel); systemChannelRef.current = null; };
   }, [appState, isDatabaseError]);
 
+  // TYPING INDICATOR LISTENER
   useEffect(() => {
       if (appState !== 'app' || !userProfile.id) return;
       const channel = supabase.channel('global_typing');
       channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
           if (payload.userId === userProfile.id) return;
+          
           setTypingUsers(prev => {
               const currentList = prev[payload.chatId] || [];
-              let newList = [...currentList];
-              if (payload.isTyping) { if (!newList.includes(payload.name)) newList.push(payload.name); } 
-              else { newList = newList.filter(name => name !== payload.name); }
+              let newList;
+              
+              if (payload.isTyping) {
+                  // Add user if not present
+                  if (!currentList.includes(payload.name)) {
+                      newList = [...currentList, payload.name];
+                  } else {
+                      newList = currentList;
+                  }
+              } else {
+                  // Remove user
+                  newList = currentList.filter(name => name !== payload.name);
+              }
+              
               return { ...prev, [payload.chatId]: newList };
           });
       }).subscribe();
@@ -407,7 +421,16 @@ const App: React.FC = () => {
 
   const handleSendTypingSignal = async (isTyping: boolean) => {
       if (!activeChatId) return;
-      await supabase.channel('global_typing').send({ type: 'broadcast', event: 'typing', payload: { chatId: activeChatId, userId: userProfile.id, name: userProfile.name, isTyping } });
+      await supabase.channel('global_typing').send({ 
+          type: 'broadcast', 
+          event: 'typing', 
+          payload: { 
+              chatId: activeChatId, 
+              userId: userProfile.id, 
+              name: userProfile.name, // Sending Name is CRITICAL for group typing display
+              isTyping 
+          } 
+      });
   };
 
   const handleStartCall = async (chatId: string, type: CallType) => {
@@ -421,25 +444,9 @@ const App: React.FC = () => {
   const retryConnection = () => { setIsDatabaseError(false); fetchChats(); };
   const activeChat = chats.find(c => c.id === activeChatId) || (tempChatUser?.id === activeChatId ? { id: activeChatId, user: tempChatUser, messages: [], unreadCount: 0, lastMessage: {} as Message } : null);
 
-  if (isMaintenanceMode && !userProfile.isAdmin) {
-      return <MaintenanceOverlay />;
-  }
-
-  if (userProfile.isBanned) {
-      return (
-          <div className="fixed inset-0 flex items-center justify-center bg-black text-white z-[9999]">
-              <div className="text-center p-8 bg-white/5 border border-red-500/30 rounded-3xl max-w-sm">
-                  <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse"><Lock size={40} className="text-red-500" /></div>
-                  <h1 className="text-2xl font-black uppercase tracking-widest text-red-500 mb-2">Access Denied</h1>
-                  <p className="text-sm text-white/60 leading-relaxed mb-6">Ваш аккаунт был заблокирован администратором.</p>
-                  <button onClick={() => window.location.reload()} className="px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl text-xs font-bold uppercase tracking-wider transition-all">Попробовать снова</button>
-              </div>
-          </div>
-      );
-  }
-
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
+      <TitleBar />
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
       {settings.pulsing && !settings.liteMode && !isMobile && (
           <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />
@@ -447,6 +454,9 @@ const App: React.FC = () => {
       {(settings.liteMode || isMobile) && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
+
+      {/* Maintenance Overlay - Rendered conditionally but with high Z-index */}
+      {isMaintenanceMode && !userProfile.isAdmin && <MaintenanceOverlay />}
 
       <AnimatePresence mode="wait">
         {appState === 'loading' && <SplashScreen onComplete={handleSplashComplete} />}
@@ -457,7 +467,7 @@ const App: React.FC = () => {
       </AnimatePresence>
 
       {appState === 'app' && (
-        <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full flex overflow-hidden bg-transparent h-[100dvh]" style={{ color: 'var(--text)' }}>
+        <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="relative z-10 w-full flex overflow-hidden bg-transparent h-[100dvh] pt-[32px]" style={{ color: 'var(--text)' }}>
             <div className={`${isMobile && activeChatId ? 'hidden' : 'w-full md:w-[380px] lg:w-[420px]'} h-full border-r border-[var(--border)] bg-black/30 backdrop-blur-3xl flex flex-col shrink-0`}>
               {isDatabaseError ? (
                   <div className="flex flex-col items-center justify-center h-full text-center p-8 space-y-6 overflow-y-auto custom-scrollbar">

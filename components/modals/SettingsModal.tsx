@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { X, Volume2, Bell, SmartphoneCharging, Activity, Check, Shield, History, ChevronRight, Download, Volume1, Edit3, BadgeCheck } from 'lucide-react';
+import { X, Volume2, Bell, SmartphoneCharging, Activity, Check, Shield, History, ChevronRight, Download, Volume1, Edit3, BadgeCheck, Monitor, Keyboard, AlertTriangle, Zap } from 'lucide-react';
 import { UserProfile, UserStatus } from '../../types';
 import { NOTIFICATION_SOUNDS } from '../../constants';
 
@@ -209,7 +209,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         <span className="text-sm font-bold text-white">Список изменений</span>
                     </div>
                     <div className="flex items-center gap-2">
-                        <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v1.9</span>
+                        <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v2.3.0</span>
                         <ChevronRight size={16} className="text-white/20 group-hover:text-white/50"/>
                     </div>
                 </button>

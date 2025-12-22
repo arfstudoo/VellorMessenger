@@ -12,9 +12,10 @@ interface ProfileModalProps {
   onUpdateProfile: (p: UserProfile) => void;
   onSaveProfile: (p: UserProfile) => Promise<void>;
   onClose: () => void;
+  isReadOnly?: boolean;
 }
 
-export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdateProfile, onSaveProfile, onClose }) => {
+export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdateProfile, onSaveProfile, onClose, isReadOnly = false }) => {
   const [activeTab, setActiveTab] = useState<'general' | 'privacy'>('general');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -22,6 +23,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file || !userProfile.id) return;
     setIsUploadingAvatar(true);
@@ -47,7 +49,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#050505]" />
           
           <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-10">
-             <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90 drop-shadow-md">МОЙ ПРОФИЛЬ</h2>
+             <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90 drop-shadow-md">
+                 {isReadOnly ? 'ПРОФИЛЬ' : 'МОЙ ПРОФИЛЬ'}
+             </h2>
              <button onClick={onClose} className="p-3 bg-black/40 backdrop-blur-md rounded-full hover:bg-white/20 text-white transition-all active:scale-90 border border-white/10"><X size={20}/></button>
           </div>
       </div>
@@ -56,15 +60,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
           
           {/* AVATAR SECTION */}
           <div className="flex flex-col items-center mb-8">
-            <div className="relative group">
+            <div className={`relative group ${isReadOnly ? '' : 'cursor-pointer'}`}>
               <div className="w-32 h-32 rounded-[2rem] border-4 border-[#050505] overflow-hidden bg-black relative shadow-2xl">
                   <img src={userProfile.avatar || 'https://via.placeholder.com/176'} className={`w-full h-full object-cover transition-opacity duration-300 ${isUploadingAvatar ? 'opacity-40' : 'opacity-100'}`} alt="Profile" />
                   {isUploadingAvatar && <div className="absolute inset-0 flex items-center justify-center"><Loader2 className="animate-spin text-vellor-red" size={32} /></div>}
               </div>
-              <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 p-2.5 bg-vellor-red rounded-2xl text-white shadow-lg border-4 border-[#050505] hover:scale-110 transition-transform active:scale-95">
-                  <Camera size={16} />
-              </button>
-              <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+              {!isReadOnly && (
+                  <>
+                    <button onClick={() => fileInputRef.current?.click()} className="absolute bottom-0 right-0 p-2.5 bg-vellor-red rounded-2xl text-white shadow-lg border-4 border-[#050505] hover:scale-110 transition-transform active:scale-95">
+                        <Camera size={16} />
+                    </button>
+                    <input type="file" ref={fileInputRef} onChange={handleAvatarChange} accept="image/*" className="hidden" />
+                  </>
+              )}
             </div>
             
             <div className="text-center mt-4">
@@ -79,40 +87,56 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
             </div>
           </div>
 
-          {/* TABS */}
-          <div className="flex p-1 bg-white/5 rounded-xl border border-white/5 mb-6">
-              <button onClick={() => setActiveTab('general')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
-                  Основное
-              </button>
-              <button onClick={() => setActiveTab('privacy')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'privacy' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
-                  Приватность
-              </button>
-          </div>
+          {/* TABS (Hidden in ReadOnly mode) */}
+          {!isReadOnly && (
+              <div className="flex p-1 bg-white/5 rounded-xl border border-white/5 mb-6">
+                  <button onClick={() => setActiveTab('general')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
+                      Основное
+                  </button>
+                  <button onClick={() => setActiveTab('privacy')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'privacy' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
+                      Приватность
+                  </button>
+              </div>
+          )}
 
           <AnimatePresence mode="wait">
             {activeTab === 'general' ? (
                 <MDiv key="general" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
                     <div className="space-y-1">
                         <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">Отображаемое имя</label>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl flex items-center px-4 focus-within:border-vellor-red/50 focus-within:bg-black/40 transition-colors">
+                        <div className={`bg-white/5 border border-white/5 rounded-2xl flex items-center px-4 transition-colors ${!isReadOnly ? 'focus-within:border-vellor-red/50 focus-within:bg-black/40' : ''}`}>
                             <User size={18} className="text-white/30" />
-                            <input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-transparent p-4 text-sm font-bold outline-none text-white placeholder:text-white/20" placeholder="Ваше имя"/>
+                            {isReadOnly ? (
+                                <div className="w-full bg-transparent p-4 text-sm font-bold text-white">{userProfile.name}</div>
+                            ) : (
+                                <input value={userProfile.name} onChange={(e) => onUpdateProfile({...userProfile, name: e.target.value})} className="w-full bg-transparent p-4 text-sm font-bold outline-none text-white placeholder:text-white/20" placeholder="Ваше имя"/>
+                            )}
                         </div>
                     </div>
 
                     <div className="space-y-1">
                         <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">Username</label>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl flex items-center px-4 focus-within:border-vellor-red/50 focus-within:bg-black/40 transition-colors">
+                        <div className={`bg-white/5 border border-white/5 rounded-2xl flex items-center px-4 transition-colors ${!isReadOnly ? 'focus-within:border-vellor-red/50 focus-within:bg-black/40' : ''}`}>
                             <AtSign size={18} className="text-white/30" />
-                            <input value={userProfile.username} onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent p-4 text-sm font-bold outline-none text-white placeholder:text-white/20" placeholder="@username"/>
+                            {isReadOnly ? (
+                                <div className="w-full bg-transparent p-4 text-sm font-bold text-white">@{userProfile.username}</div>
+                            ) : (
+                                <input value={userProfile.username} onChange={(e) => onUpdateProfile({...userProfile, username: e.target.value.toLowerCase().replace(/\s/g, '')})} className="w-full bg-transparent p-4 text-sm font-bold outline-none text-white placeholder:text-white/20" placeholder="@username"/>
+                            )}
                         </div>
                     </div>
 
                     <div className="space-y-1">
                         <label className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-1">О себе</label>
-                        <div className="bg-white/5 border border-white/5 rounded-2xl flex items-start px-4 py-3 focus-within:border-vellor-red/50 focus-within:bg-black/40 transition-colors">
+                        <div className={`bg-white/5 border border-white/5 rounded-2xl flex items-start px-4 py-3 transition-colors ${!isReadOnly ? 'focus-within:border-vellor-red/50 focus-within:bg-black/40' : ''}`}>
                             <AlignLeft size={18} className="text-white/30 mt-1" />
-                            <textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-transparent px-4 text-sm min-h-[100px] resize-none outline-none leading-relaxed text-white placeholder:text-white/20 custom-scrollbar" placeholder="Расскажите о себе..." />
+                            {isReadOnly ? (
+                                <div className="w-full bg-transparent px-4 text-sm min-h-[100px] leading-relaxed text-white whitespace-pre-wrap">
+                                    {userProfile.bio || <span className="text-white/20 italic">Информация не заполнена</span>}
+                                </div>
+                            ) : (
+                                <textarea value={userProfile.bio} onChange={(e) => onUpdateProfile({...userProfile, bio: e.target.value})} className="w-full bg-transparent px-4 text-sm min-h-[100px] resize-none outline-none leading-relaxed text-white placeholder:text-white/20 custom-scrollbar" placeholder="Расскажите о себе..." />
+                            )}
                         </div>
                     </div>
 
@@ -160,16 +184,18 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
           </AnimatePresence>
       </div>
       
-      {/* FLOATING ACTION BUTTON */}
-      <div className="absolute bottom-6 left-6 right-6 z-20">
-         <button 
-            onClick={async () => { setIsSaving(true); await onSaveProfile(userProfile); setIsSaving(false); onClose(); }} 
-            disabled={isSaving} 
-            className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
-         >
-            {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить изменения'}
-         </button>
-      </div>
+      {/* FLOATING ACTION BUTTON (Hide in ReadOnly) */}
+      {!isReadOnly && (
+          <div className="absolute bottom-6 left-6 right-6 z-20">
+             <button 
+                onClick={async () => { setIsSaving(true); await onSaveProfile(userProfile); setIsSaving(false); onClose(); }} 
+                disabled={isSaving} 
+                className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-2xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95 shadow-[0_0_30px_rgba(255,255,255,0.1)]"
+             >
+                {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить изменения'}
+             </button>
+          </div>
+      )}
     </div>
   );
 };

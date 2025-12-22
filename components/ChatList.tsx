@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -296,16 +296,71 @@ export const ChatList: React.FC<ChatListProps> = ({
              {activeModal === 'changelog' && (
                  <div className="flex flex-col h-full bg-[#050505] relative">
                      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
-                        <div className="flex items-center gap-4"><button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button><h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">LOGS</h2></div>
-                        <div className="p-2 bg-white/5 rounded-lg"><History size={16} className="text-white/50"/></div>
+                        <div className="flex items-center gap-4">
+                            <button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
+                            <div>
+                                <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">UPDATES</h2>
+                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.0</p>
+                            </div>
+                        </div>
+                        <div className="p-2 bg-vellor-red/10 rounded-lg"><History size={16} className="text-vellor-red"/></div>
                      </div>
-                     <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                         <div className="relative pl-6 border-l border-white/10 space-y-4">
-                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-vellor-red shadow-[0_0_10px_currentColor]" />
+                     <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar pb-24">
+                         {/* VERSION 2.3.0 */}
+                         <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
+                             <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
+                             <div>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vellor Desktop X</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Огромное обновление интерфейса</p>
+                             </div>
+                             
+                             <div className="space-y-3">
+                                 <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
+                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Monitor size={48} /></div>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14} className="text-blue-400"/> Desktop Controls</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Наконец-то завезли кастомные кнопки управления окном для ПК версии!
+                                         <br/>
+                                         Больше никаких стандартных рамок Windows. Теперь закрыть, свернуть и развернуть окно можно стильно, прямо в интерфейсе приложения. Выглядит просто пушка, всё в стиле Glassmorphism.
+                                     </p>
+                                 </div>
+
+                                 <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
+                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Keyboard size={48} /></div>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Keyboard size={14} className="text-purple-400"/> Hotkeys Support</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Добавили поддержку клавиши <span className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono border border-white/10">Esc</span>.
+                                         <br/>
+                                         Теперь можно мгновенно выходить из чата, закрывать профили или убирать зум с картинок одной кнопкой. Мелочь, а как удобно!
+                                     </p>
+                                 </div>
+
+                                 <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
+                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Zap size={48} /></div>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Smart Typing</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Полностью переписали логику индикатора "печатает...".
+                                         <br/>
+                                         В группах теперь <strong>видно конкретные имена</strong> тех, кто пишет сообщение! Больше не нужно гадать, кто именно строчит ответ.
+                                     </p>
+                                 </div>
+
+                                 <div className="p-4 bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/20 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Maintenance Fix</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Исправили критический баг с экраном технических работ.
+                                         Раньше оверлей мог не появляться или пропадать при перезагрузке. Теперь защита железобетонная — если сервер закрыт, никто (кроме админов) не пройдёт.
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* VERSION 2.2.1 */}
+                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
+                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div><h3 className="text-lg font-black text-white">Версия 2.2.1</h3><p className="text-[10px] text-white/40 font-mono">Bug Fixes & Maintenance</p></div>
                              <div className="space-y-3">
                                  <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-vellor-red mb-2 flex items-center gap-2"><Check size={14}/> Status Fix</h4><p className="text-sm text-white/80 leading-relaxed">Исправлена ошибка, из-за которой пользователи отображались "В сети" после выхода. Теперь статус синхронизируется в реальном времени.</p></div>
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><ShieldAlert size={14}/> Admin Controls</h4><p className="text-sm text-white/80 leading-relaxed">ЛКМ для включения функций, ПКМ для выключения (Техработы, Невидимка).</p></div>
                              </div>
                          </div>
                      </div>
