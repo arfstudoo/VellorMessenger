@@ -73,8 +73,8 @@ const AudioPlayer: React.FC<{ url: string, duration?: string }> = React.memo(({ 
 
   return (
     <div className="flex items-center gap-3 py-1.5 px-1 min-w-[180px]">
-      <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0">
-        {isPlaying ? <Pause size={16} fill="currentColor"/> : <Play size={16} fill="currentColor" className="ml-0.5"/>}
+      <button onClick={togglePlay} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all shrink-0 active:scale-95">
+        {isPlaying ? <Pause size={18} fill="currentColor"/> : <Play size={18} fill="currentColor" className="ml-0.5"/>}
       </button>
       <div className="flex-1 space-y-1">
         <div className="h-1 bg-white/10 rounded-full overflow-hidden w-full"><div className="h-full bg-white transition-all duration-100" style={{ width: `${progress}%` }} /></div>
@@ -527,10 +527,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
         
-        <div className="h-14 flex items-center justify-between px-3 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
-            <div className="flex items-center gap-2 md:gap-4">
-                {isMobile && <button onClick={onBack} className="text-white p-1 hover:bg-white/5 rounded-full"><ArrowLeft size={22}/></button>}
-                <div className="relative cursor-pointer" onClick={() => setShowUserInfo(true)}>
+        <div className="h-14 flex items-center justify-between px-2 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
+            <div className="flex items-center gap-1 md:gap-4 overflow-hidden">
+                {isMobile && <button onClick={onBack} className="text-white p-3 -ml-2 hover:bg-white/5 rounded-full active:scale-95 transition-transform"><ArrowLeft size={22}/></button>}
+                <div className="relative cursor-pointer shrink-0" onClick={() => setShowUserInfo(true)}>
                     <div className="w-9 h-9 rounded-full bg-gray-800 overflow-hidden border border-white/5">
                       <img src={chat.user.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar"/>
                     </div>
@@ -538,23 +538,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-black ${statusColors[realtimeStatus] || statusColors.offline}`} />
                     )}
                 </div>
-                <div className="cursor-pointer" onClick={() => setShowUserInfo(true)}>
-                    <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5 flex items-center gap-1.5">
+                <div className="cursor-pointer min-w-0" onClick={() => setShowUserInfo(true)}>
+                    <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5 flex items-center gap-1.5 truncate">
                         {chat.user.name}
                         {isSuperAdmin && <Crown size={12} className="text-yellow-400 fill-yellow-400" />}
                         {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     </h3>
                     {typingUserNames.length > 0 ? (
-                        <p className="text-[10px] text-vellor-red font-bold animate-pulse truncate max-w-[200px]">{typingText}</p>
+                        <p className="text-[10px] text-vellor-red font-bold animate-pulse truncate max-w-[150px] md:max-w-[200px]">{typingText}</p>
                     ) : (
-                        <p className="text-[10px] font-medium text-white/40">{typingText}</p>
+                        <p className="text-[10px] font-medium text-white/40 truncate">{typingText}</p>
                     )}
                 </div>
             </div>
-            <div className="flex gap-1 md:gap-2">
-                <button onClick={() => onStartCall(chat.id, 'audio')} className="text-white/40 hover:text-white p-2 transition-all"><Phone size={18} /></button>
-                <button onClick={() => onStartCall(chat.id, 'video')} className="text-white/40 hover:text-white p-2 transition-all"><Video size={18} /></button>
-                <button onClick={() => setShowUserInfo(!showUserInfo)} className="text-white/40 hover:text-white p-2 transition-all"><Info size={18} /></button>
+            <div className="flex gap-0 md:gap-2 shrink-0">
+                <button onClick={() => onStartCall(chat.id, 'audio')} className="text-white/60 hover:text-white p-3 transition-all active:scale-90 active:text-vellor-red"><Phone size={20} /></button>
+                <button onClick={() => onStartCall(chat.id, 'video')} className="text-white/60 hover:text-white p-3 transition-all active:scale-90 active:text-vellor-red"><Video size={20} /></button>
+                <button onClick={() => setShowUserInfo(!showUserInfo)} className="text-white/60 hover:text-white p-3 transition-all active:scale-90"><Info size={20} /></button>
             </div>
         </div>
 
@@ -569,7 +569,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth">
+        <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth touch-pan-y">
             {chat.messages.map((msg) => (
                 <MessageItem key={msg.id} msg={msg} isMe={msg.senderId === 'me' || msg.senderId === myId} chatUser={chat.user} groupMembers={groupMembers} myId={myId} onContextMenu={handleContextMenu} onReply={(m: any) => setReplyingTo(m)} scrollToMessage={scrollToMessage} setZoomedImage={setZoomedImage} chatMessages={chat.messages} handleToggleReaction={handleToggleReaction} />
             ))}
@@ -589,21 +589,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {QUICK_REACTIONS.map(emoji => <MButton key={emoji} whileHover={{ scale: 1.2 }} onClick={() => handleToggleReaction(contextMenu.message.id, emoji)} className="text-xl p-1">{emoji}</MButton>)}
                     </div>
                     {contextMenu.message.type === 'text' && (
-                         <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+                         <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
                             <Copy size={14} className="text-white/60" /> Копировать
                         </button>
                     )}
-                    <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+                    <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
                         <Reply size={14} className="text-white/60" /> Ответить
                     </button>
-                    <button onClick={() => { onPinMessage(contextMenu.message.id, contextMenu.message.isPinned || false); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+                    <button onClick={() => { onPinMessage(contextMenu.message.id, contextMenu.message.isPinned || false); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
                         <Pin size={14} className={contextMenu.message.isPinned ? "text-vellor-red" : "text-white/60"} /> {contextMenu.message.isPinned ? 'Открепить' : 'Закрепить'}
                     </button>
                     {(contextMenu.message.senderId === 'me' || contextMenu.message.senderId === myId) && contextMenu.message.type === 'text' && (
-                        <button onClick={() => { setEditingMessageId(contextMenu.message.id); setInputText(contextMenu.message.text); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors"><Edit2 size={14} className="text-white/60" /> Изменить</button>
+                        <button onClick={() => { setEditingMessageId(contextMenu.message.id); setInputText(contextMenu.message.text); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95"><Edit2 size={14} className="text-white/60" /> Изменить</button>
                     )}
                     <div className="h-px bg-white/10 my-1" />
-                    <button onClick={() => { onDeleteMessage(contextMenu.message.id); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors"><Trash2 size={14} /> Удалить</button>
+                    <button onClick={() => { onDeleteMessage(contextMenu.message.id); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors active:scale-95"><Trash2 size={14} /> Удалить</button>
                 </MDiv>
             )}
         </AnimatePresence>
@@ -612,7 +612,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             {zoomedImage && (
                 <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setZoomedImage(null)}>
                     <MImg src={zoomedImage} className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" initial={{ scale: 0.8 }} animate={{ scale: 1 }} exit={{ scale: 0.8 }} onClick={(e: any) => e.stopPropagation()} />
-                    <button className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white"><X size={24} /></button>
+                    <button className="absolute top-4 right-4 p-4 bg-white/10 hover:bg-white/20 rounded-full text-white active:scale-90"><X size={24} /></button>
                 </MDiv>
             )}
         </AnimatePresence>
@@ -622,7 +622,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
                     <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
-                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); }} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
+                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); }} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={18}/></button>
                     </div>
                     
                     {/* INFO CONTENT */}
@@ -645,7 +645,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         {isAddingMember ? (
                             <MDiv initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full space-y-4">
                                 <div className="flex items-center gap-2 mb-2">
-                                    <button onClick={() => setIsAddingMember(false)} className="p-1.5 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><ArrowLeft size={16}/></button>
+                                    <button onClick={() => setIsAddingMember(false)} className="p-3 hover:bg-white/10 rounded-full text-white/50 hover:text-white active:scale-90"><ArrowLeft size={16}/></button>
                                     <h4 className="text-xs font-bold uppercase tracking-widest text-white">Добавить участника</h4>
                                 </div>
                                 <div className="relative group">
@@ -655,7 +655,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 <div className="space-y-2">
                                     {isSearchingMembers ? <div className="flex justify-center p-4"><Loader2 className="animate-spin text-white/30" /></div> : 
                                      memberSearchResults.map(user => (
-                                        <button key={user.id} onClick={() => handleAddMember(user)} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left">
+                                        <button key={user.id} onClick={() => handleAddMember(user)} className="w-full p-3 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left active:scale-98">
                                             <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden shrink-0"><img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
                                             <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate text-white">{user.name}</p><p className="text-[10px] opacity-40 truncate">@{user.username}</p></div>
                                             <div className="p-1.5 bg-vellor-red/20 text-vellor-red rounded-full"><Plus size={14}/></div>
@@ -676,13 +676,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                     <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-4">
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-2 text-white/50"><Users size={14}/><span className="text-[10px] font-bold uppercase tracking-wider">Участники ({groupMembers.length})</span></div>
-                                            <button onClick={() => setIsAddingMember(true)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/60 hover:text-vellor-red transition-colors" title="Добавить участника"><Plus size={14}/></button>
+                                            <button onClick={() => setIsAddingMember(true)} className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-white/60 hover:text-vellor-red transition-colors active:scale-90" title="Добавить участника"><Plus size={16}/></button>
                                         </div>
                                         <div className="space-y-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
                                             {groupMembers.map(member => {
                                                 const status = onlineUsers.get(member.user.id) || 'offline';
                                                 return (
-                                                    <div key={member.user.id} className="flex items-center gap-3 p-1.5 hover:bg-white/5 rounded-xl transition-colors">
+                                                    <div key={member.user.id} className="flex items-center gap-3 p-2 hover:bg-white/5 rounded-xl transition-colors">
                                                         <div className="relative">
                                                             <div className="w-8 h-8 rounded-full bg-gray-800 overflow-hidden"><img src={member.user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
                                                             <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-black rounded-full ${status === 'online' ? 'bg-green-500' : 'bg-gray-500'}`} />
@@ -709,13 +709,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 {chat.user.isGroup && (
                                     <>
                                         {onLeaveGroup && (
-                                            <button onClick={() => onLeaveGroup(chat.id)} className="w-full py-4 mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                            <button onClick={() => onLeaveGroup(chat.id)} className="w-full py-4 mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 active:scale-95">
                                                 <LogOut size={16} /> Покинуть группу
                                             </button>
                                         )}
                                         {/* DELETE GROUP BUTTON (Only for owner) */}
                                         {onDeleteGroup && chat.ownerId === myId && (
-                                            <button onClick={() => onDeleteGroup(chat.id)} className="w-full py-4 bg-black/40 border border-red-500 rounded-2xl text-red-500 font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.15)]">
+                                            <button onClick={() => onDeleteGroup(chat.id)} className="w-full py-4 bg-black/40 border border-red-500 rounded-2xl text-red-500 font-black uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(239,68,68,0.15)] active:scale-95">
                                                 <Trash2 size={16} /> Удалить группу
                                             </button>
                                         )}
@@ -728,8 +728,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* ... (Bottom Input area - unchanged) ... */}
-        <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-safe-bottom">
+        {/* BOTTOM INPUT - OPTIMIZED FOR MOBILE SAFARI */}
+        <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-[env(safe-area-inset-bottom)]">
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">
                      <div className="flex items-center gap-3 overflow-hidden">
@@ -742,7 +742,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                              <p className="text-xs text-white/70 truncate max-w-[200px]">{editingMessageId ? 'Исправьте сообщение' : replyingTo?.text || 'Медиа'}</p>
                          </div>
                      </div>
-                     <button onClick={() => { setEditingMessageId(null); setReplyingTo(null); setInputText(''); }} className="p-2 hover:text-white text-gray-400"><X size={16}/></button>
+                     <button onClick={() => { setEditingMessageId(null); setReplyingTo(null); setInputText(''); }} className="p-2 hover:text-white text-gray-400 active:scale-90"><X size={16}/></button>
                  </div>
              )}
 
@@ -750,21 +750,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                  <MDiv initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="absolute -top-28 left-4 w-32 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20">
                      <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 mb-1 group">
                          {pendingFile.type === 'image' ? <img src={pendingFile.url} className="w-full h-full object-cover" /> : <div className="w-full h-full flex flex-col items-center justify-center text-white/50"><FileText size={24} /></div>}
-                         <button onClick={() => setPendingFile(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1"><X size={10} /></button>
+                         <button onClick={() => setPendingFile(null)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 active:scale-90"><X size={10} /></button>
                      </div>
                  </MDiv>
              )}
 
-             <div className="flex items-end gap-2 max-w-5xl mx-auto relative">
+             <div className="flex items-end gap-2 max-w-5xl mx-auto relative mb-1">
                 {!isRecording ? (
                   <>
                     <div className="relative">
-                        <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3 rounded-2xl transition-all ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={20}/></button>
+                        <button onClick={() => setShowAttachments(!showAttachments)} className={`p-3 rounded-2xl transition-all active:scale-90 ${showAttachments ? 'bg-vellor-red text-white' : 'text-gray-400 hover:text-white bg-white/5'}`}><Paperclip size={20}/></button>
                         <AnimatePresence>
                             {showAttachments && (
                                 <MDiv initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 10, opacity: 0 }} className="absolute bottom-14 left-0 w-40 bg-black/95 border border-white/10 p-1.5 rounded-2xl shadow-2xl overflow-hidden z-[100]">
-                                    <button onClick={() => { setUploadingType('image'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
-                                    <button onClick={() => { setUploadingType('file'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors"><FileText size={16} className="text-vellor-red"/> Файл</button>
+                                    <button onClick={() => { setUploadingType('image'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><ImageIcon size={16} className="text-vellor-red"/> Фото</button>
+                                    <button onClick={() => { setUploadingType('file'); setTimeout(() => fileInputRef.current?.click(), 50); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/5 rounded-xl text-xs font-bold uppercase tracking-wide transition-colors active:scale-95"><FileText size={16} className="text-vellor-red"/> Файл</button>
                                 </MDiv>
                             )}
                         </AnimatePresence>
@@ -779,21 +779,21 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                             placeholder={pendingFile ? "Подпись..." : "Сообщение..."}
                             className="w-full bg-transparent text-white py-3 px-2 max-h-32 min-h-[44px] resize-none outline-none custom-scrollbar text-[15px] leading-snug" 
                         />
-                        <button onClick={() => setShowEmojis(!showEmojis)} className={`p-2.5 mb-0.5 transition-colors ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={20}/></button>
+                        <button onClick={() => setShowEmojis(!showEmojis)} className={`p-2.5 mb-0.5 transition-colors active:scale-90 ${showEmojis ? 'text-vellor-red' : 'text-gray-500 hover:text-white'}`}><Smile size={20}/></button>
                     </div>
 
                     {inputText.trim() || pendingFile ? (
-                        <button onClick={handleSend} disabled={isUploading} className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100">
+                        <button onClick={handleSend} disabled={isUploading} className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100">
                             {isUploading ? <Loader2 className="animate-spin" size={20}/> : (editingMessageId ? <Check size={20}/> : <Send size={20}/>)}
                         </button>
                     ) : (
-                        <button onClick={startRecording} className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:text-vellor-red hover:bg-white/10 transition-all"><Mic size={20}/></button>
+                        <button onClick={startRecording} className="p-3 rounded-2xl bg-white/5 text-gray-400 hover:text-vellor-red hover:bg-white/10 transition-all active:scale-90"><Mic size={20}/></button>
                     )}
                   </>
                 ) : (
                   <MDiv initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="flex-1 flex items-center justify-between bg-vellor-red/10 border border-vellor-red/20 rounded-[2rem] p-2 pr-4 h-[44px]">
                     <div className="flex items-center gap-4 pl-4"><MDiv animate={{ opacity: [1, 0, 1] }} transition={{ repeat: Infinity, duration: 1.5 }} className="w-2.5 h-2.5 rounded-full bg-vellor-red" /><span className="text-sm font-black text-white font-mono">{Math.floor(recordingTime / 60)}:{(recordingTime % 60).toString().padStart(2, '0')}</span></div>
-                    <div className="flex items-center gap-3"><button onClick={() => stopRecording(false)} className="p-2 text-white/40 hover:text-white transition-colors"><Trash2 size={18}/></button><button onClick={() => stopRecording(true)} className="p-2 bg-vellor-red rounded-full text-white"><StopCircle size={18}/></button></div>
+                    <div className="flex items-center gap-3"><button onClick={() => stopRecording(false)} className="p-2 text-white/40 hover:text-white transition-colors active:scale-90"><Trash2 size={18}/></button><button onClick={() => stopRecording(true)} className="p-2 bg-vellor-red rounded-full text-white active:scale-90"><StopCircle size={18}/></button></div>
                   </MDiv>
                 )}
              </div>

@@ -244,6 +244,21 @@ const App: React.FC = () => {
     }
   }, [settings.liteMode]);
 
+  // --- GLOBAL ESCAPE KEY HANDLER ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            // Logic handled in components via callback props usually, 
+            // but for global "exit chat" behavior:
+            if (activeChatId) {
+                setActiveChatId(null);
+            }
+        }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeChatId]);
+
   // --- AUDIO SYSTEM (iOS Compatible) ---
   const initAudioContext = () => {
       if (!audioContextRef.current) {
@@ -416,7 +431,7 @@ const App: React.FC = () => {
     localStorage.setItem('vellor_theme', currentTheme);
   }, [currentTheme]);
 
-  // --- PRESENCE LOGIC (FIXED) ---
+  // --- PRESENCE LOGIC (FIXED & IMPROVED) ---
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
 
@@ -426,6 +441,12 @@ const App: React.FC = () => {
 
     presenceChannelRef.current = channel;
 
+    // Fix Phantom Online: Untrack on close
+    const handleBeforeUnload = async () => {
+       await channel.untrack();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     channel
       .on('presence', { event: 'sync' }, () => {
         // Sync is the source of truth
@@ -434,7 +455,6 @@ const App: React.FC = () => {
         
         Object.entries(state).forEach(([key, value]) => {
             const presenceData = value[0] as any;
-            // Ensure we don't accidentally mark ourselves (though not harmful in Map)
             if (key !== userProfile.id) {
                 newOnlineMap.set(key, presenceData?.status || 'online');
             }
@@ -450,7 +470,6 @@ const App: React.FC = () => {
          });
       })
       .on('presence', { event: 'leave' }, ({ key }) => {
-         // Strict remove on leave
          setOnlineUsers(prev => {
              const next = new Map(prev);
              next.delete(key);
@@ -463,7 +482,12 @@ const App: React.FC = () => {
         }
       });
 
-    return () => { supabase.removeChannel(channel); presenceChannelRef.current = null; };
+    return () => { 
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+        channel.untrack();
+        supabase.removeChannel(channel); 
+        presenceChannelRef.current = null; 
+    };
   }, [appState, userProfile.id, isDatabaseError]);
 
   // --- TYPING BROADCAST LISTENER ---

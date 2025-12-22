@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser, VolumeX, SmartphoneCharging } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -65,7 +65,6 @@ const StatusIndicator: React.FC<{ status: UserStatus; size?: string }> = ({ stat
 export const ChatList: React.FC<ChatListProps> = ({ 
   chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers
 }) => {
-  // ... (Rest of modal state same as before) ...
   const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | 'admin_login' | 'admin_panel' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -208,7 +207,6 @@ export const ChatList: React.FC<ChatListProps> = ({
 
       } catch (e: any) {
           console.error(e);
-          // Check for specific Supabase schema error or PGRST204 (column not found)
           if (e.message?.includes('is_admin') || e.code === 'PGRST204' || e.code === '400') {
              showToast("Ошибка базы данных: Отсутствует колонка is_admin. Обновите структуру БД.", "error");
           } else {
@@ -219,7 +217,6 @@ export const ChatList: React.FC<ChatListProps> = ({
       }
   };
 
-  // ... (Rest of the component code, handlers for admin/profile) ...
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !userProfile.id) return;
@@ -248,21 +245,6 @@ export const ChatList: React.FC<ChatListProps> = ({
       audio.onended = () => setPlayingSoundId(null);
   };
 
-  const testNotification = async () => {
-    if (!settings.notifications) { showToast("Включите уведомления в настройках выше", "warning"); return; }
-    if (!("Notification" in window)) { showToast("Браузер не поддерживает уведомления", "error"); return; }
-    if (Notification.permission === "granted") {
-      new Notification("Vellor Messenger", { body: "Это тестовое уведомление", icon: userProfile.avatar });
-      showToast("Пуш отправлен", "success");
-    } else if (Notification.permission !== "denied") {
-      const permission = await Notification.requestPermission();
-      if (permission === "granted") {
-        new Notification("Vellor Messenger", { body: "Спасибо! Уведомления включены." });
-        showToast("Разрешение получено", "success");
-      }
-    } else { showToast("Разрешите уведомления в браузере", "error"); }
-  };
-
   const handleAdminTrigger = () => {
       setAdminTapCount(prev => prev + 1);
       if (adminTapCount + 1 >= 7) {
@@ -276,7 +258,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           if (!userProfile.isAdmin) {
               const { error } = await supabase.rpc('claim_admin');
               if (error) {
-                  console.error("Auto-admin failed:", error);
                   showToast("Ошибка авто-выдачи прав. Обновите SQL-скрипт в БД.", "warning");
               } else {
                   showToast("Права администратора активированы", "success");
@@ -309,7 +290,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           }
           const { error } = await supabase.from('profiles').update(updates).eq('id', adminSelectedUser.id);
           if (error) {
-              console.error(error);
               showToast("Ошибка доступа (RLS). Вы не админ в БД.", "error");
           } else {
               showToast("Успешно обновлено", "success");
@@ -317,7 +297,6 @@ export const ChatList: React.FC<ChatListProps> = ({
               if (action === 'reset') setAdminEditMode(false);
           }
       } catch (e) {
-          console.error(e);
           showToast("System Error", "error");
       } finally {
           setAdminActionLoading(false);
@@ -338,7 +317,6 @@ export const ChatList: React.FC<ChatListProps> = ({
           setAdminEditMode(false);
           showToast("Профиль пользователя обновлен", "success");
       } catch(e) {
-          console.error(e);
           showToast("Ошибка обновления", "error");
       } finally {
           setAdminActionLoading(false);
@@ -371,7 +349,7 @@ export const ChatList: React.FC<ChatListProps> = ({
     <div className="flex flex-col h-full relative">
       <div className="p-4 flex flex-col gap-3 border-b border-[var(--border)] bg-black/10 backdrop-blur-sm sticky top-0 z-20">
         <div className="flex items-center justify-between">
-            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 bg-white/5 rounded-xl text-white/40 hover:text-white transition-all">
+            <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 bg-white/5 rounded-xl text-white/40 hover:text-white transition-all active:scale-90">
               <Menu size={22}/>
             </button>
             
@@ -384,7 +362,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </div>
             </div>
 
-            <div className="relative group cursor-pointer" onClick={() => setActiveModal('profile')}>
+            <div className="relative group cursor-pointer active:scale-95 transition-transform" onClick={() => setActiveModal('profile')}>
               <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl">
                   <img src={userProfile.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar" />
               </div>
@@ -405,7 +383,7 @@ export const ChatList: React.FC<ChatListProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 pt-2 custom-scrollbar relative">
+      <div className="flex-1 overflow-y-auto px-2 pt-2 pb-20 custom-scrollbar relative touch-pan-y">
         {filteredChats.map(chat => {
           const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
           const typers = typingUsers[chat.id] || [];
@@ -415,7 +393,6 @@ export const ChatList: React.FC<ChatListProps> = ({
             key={chat.id} 
             layout={!settings.liteMode && !isMobile} 
             onContextMenu={(e: any) => handleContextMenu(e, chat)}
-            whileHover={!isMobile ? { scale: 1.01 } : {}}
             whileTap={{ scale: 0.98 }}
             onClick={() => onSelectChat(chat.id, chat.user)}
             className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all mb-1 relative group ${activeChatId === chat.id ? 'bg-white/10 shadow-lg border border-white/5' : 'hover:bg-white/[0.03]'}`}
@@ -485,14 +462,14 @@ export const ChatList: React.FC<ChatListProps> = ({
              className="fixed z-[100] w-48 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden"
              onClick={(e: any) => e.stopPropagation()}
            >
-              <button onClick={() => { onChatAction(contextMenu.chat.id, 'pin'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => { onChatAction(contextMenu.chat.id, 'pin'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
                   <Pin size={14} className={contextMenu.chat.isPinned ? "text-vellor-red fill-vellor-red" : "text-white/60"} /> {contextMenu.chat.isPinned ? 'Открепить' : 'Закрепить'}
               </button>
-              <button onClick={() => { onChatAction(contextMenu.chat.id, 'mute'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => { onChatAction(contextMenu.chat.id, 'mute'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors active:scale-95">
                   <BellOff size={14} className={contextMenu.chat.isMuted ? "text-vellor-red" : "text-white/60"} /> {contextMenu.chat.isMuted ? 'Включить звук' : 'Выключить звук'}
               </button>
               <div className="h-px bg-white/10 my-1.5" />
-              <button onClick={() => { onChatAction(contextMenu.chat.id, 'delete'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors">
+              <button onClick={() => { onChatAction(contextMenu.chat.id, 'delete'); setContextMenu(null); }} className="flex items-center gap-3 w-full p-3 hover:bg-red-500/20 text-red-500 rounded-xl text-xs font-bold transition-colors active:scale-95">
                   <Trash2 size={14} /> Удалить чат
               </button>
            </MDiv>
@@ -503,7 +480,7 @@ export const ChatList: React.FC<ChatListProps> = ({
         {isMenuOpen && (
           <>
             <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsMenuOpen(false)} className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" />
-            <MDiv initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="absolute top-20 left-4 w-60 bg-[#050505] border border-white/10 rounded-3xl z-50 p-2 shadow-2xl">
+            <MDiv initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -20, opacity: 0 }} className="absolute top-20 left-4 w-60 bg-[#050505] border border-white/10 rounded-3xl z-50 p-2 shadow-2xl max-h-[80vh] overflow-y-auto">
               <div className="p-4 mb-2 bg-white/5 rounded-2xl border border-white/5">
                  <p className="text-white font-bold flex items-center gap-2">
                      {userProfile.name}
@@ -512,17 +489,17 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </p>
                  <p className="text-xs text-white/50">@{userProfile.username}</p>
               </div>
-              <button onClick={() => { setActiveModal('profile'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all">
+              <button onClick={() => { setActiveModal('profile'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all active:scale-95">
                 <User size={16} className="text-vellor-red"/> Профиль
               </button>
-              <button onClick={() => { setActiveModal('nft'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all">
+              <button onClick={() => { setActiveModal('nft'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all active:scale-95">
                 <Gem size={16} className="text-fuchsia-400"/> Коллекция NFT
               </button>
-              <button onClick={() => { setActiveModal('settings'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all">
+              <button onClick={() => { setActiveModal('settings'); setIsMenuOpen(false); }} className="flex items-center gap-4 w-full p-4 hover:bg-white/5 rounded-2xl text-xs font-black tracking-widest uppercase transition-all active:scale-95">
                 <Settings size={16} className="text-vellor-red"/> Настройки
               </button>
               <div className="h-px bg-white/5 my-2" />
-              <button onClick={() => (supabase.auth as any).signOut().then(() => window.location.reload())} className="flex items-center gap-4 w-full p-4 text-red-500/80 hover:text-red-500 rounded-2xl text-xs font-black tracking-widest uppercase transition-all"><LogOut size={16}/> Выйти</button>
+              <button onClick={() => (supabase.auth as any).signOut().then(() => window.location.reload())} className="flex items-center gap-4 w-full p-4 text-red-500/80 hover:text-red-500 rounded-2xl text-xs font-black tracking-widest uppercase transition-all active:scale-95"><LogOut size={16}/> Выйти</button>
             </MDiv>
           </>
         )}
@@ -530,26 +507,149 @@ export const ChatList: React.FC<ChatListProps> = ({
         {/* Render modals here as before... */}
         {activeModal && (
           <MDiv initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }} className="absolute inset-0 bg-[#0a0a0a] z-[60] flex flex-col overflow-hidden">
-             {/* ... Full modal content from original file ... */}
-             {/* Shortened for brevity as no logic changed inside existing modals, only typing prop used in list above */}
+             
              {activeModal === 'nft' && <NftGallery />}
-             {/* Just re-rendering essential parts to ensure file consistency */}
-             {activeModal !== 'admin_login' && activeModal !== 'admin_panel' && activeModal !== 'nft' && (
-                // ... Standard Modal Header ...
+             
+             {/* SETTINGS MODAL */}
+             {activeModal === 'settings' && (
+                 <div className="flex flex-col h-full bg-[#050505] p-6 pt-8">
+                     <div className="flex justify-between items-center mb-8 shrink-0">
+                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white">НАСТРОЙКИ</h2>
+                         <button onClick={() => setActiveModal(null)} className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-all text-white/50 hover:text-white active:scale-90"><X size={20}/></button>
+                     </div>
+
+                     <div className="space-y-8 overflow-y-auto custom-scrollbar pb-10">
+                         {/* 1. STATUS SECTION */}
+                         <div>
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-3 ml-1">МОЙ СТАТУС</h3>
+                             <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => onUpdateStatus('online')} className={`p-5 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${userProfile.status === 'online' ? 'bg-red-900/20 border-red-900/50' : 'bg-[#111] border-[#222]'}`}>
+                                    <div className={`w-3 h-3 rounded-full border-2 border-black ${userProfile.status === 'online' ? 'bg-red-600 shadow-[0_0_10px_#dc2626]' : 'border-red-600'}`} />
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">В СЕТИ</span>
+                                </button>
+                                <button onClick={() => onUpdateStatus('away')} className={`p-5 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${userProfile.status === 'away' ? 'bg-yellow-900/20 border-yellow-900/50' : 'bg-[#111] border-[#222]'}`}>
+                                    <div className={`w-3 h-3 rounded-full border-2 border-black ${userProfile.status === 'away' ? 'bg-yellow-500' : 'border-yellow-500'}`} />
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">ОТОШЕЛ</span>
+                                </button>
+                                <button onClick={() => onUpdateStatus('dnd')} className={`p-5 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${userProfile.status === 'dnd' ? 'bg-white/5 border-white/10' : 'bg-[#111] border-[#222]'}`}>
+                                    <div className={`w-3 h-3 rounded-full border-2 border-black border-white/20 ${userProfile.status === 'dnd' ? 'bg-white/20' : ''}`} />
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">ЗАНЯТ</span>
+                                </button>
+                                <button onClick={() => onUpdateStatus('offline')} className={`p-5 rounded-2xl border flex items-center gap-3 transition-all active:scale-95 ${userProfile.status === 'offline' ? 'bg-white/5 border-white/10' : 'bg-[#111] border-[#222]'}`}>
+                                    <div className={`w-3 h-3 rounded-full border-2 border-black border-white/20 ${userProfile.status === 'offline' ? 'bg-white/20' : ''}`} />
+                                    <span className="text-xs font-bold text-white uppercase tracking-wider">СКРЫТ</span>
+                                </button>
+                             </div>
+                         </div>
+
+                         {/* 2. PRIVACY BUTTON */}
+                         <button onClick={() => setActiveModal('privacy')} className="w-full p-5 bg-[#111] border border-[#222] rounded-2xl flex items-center justify-between group hover:border-white/10 transition-all active:scale-[0.98]">
+                             <span className="text-sm font-bold text-white">Конфиденциальность</span> <ChevronRight size={18} className="opacity-20 text-white"/>
+                         </button>
+
+                         {/* 3. THEME SELECTION */}
+                         <div>
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-3 ml-1">ТЕМА ОФОРМЛЕНИЯ</h3>
+                             <div className="grid grid-cols-2 gap-3">
+                                {THEME_DATA.map(theme => (
+                                    <button 
+                                        key={theme.id}
+                                        onClick={() => onSetTheme(theme.id)}
+                                        className={`p-4 rounded-2xl border flex flex-col items-center gap-2 transition-all active:scale-95 ${currentThemeId === theme.id ? 'bg-white/10 border-vellor-red' : 'bg-[#111] border-[#222] hover:bg-white/5'}`}
+                                    >
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${theme.accent} bg-black border border-white/10`}>
+                                            <theme.icon size={16} />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-wider text-white/80">{theme.name}</span>
+                                    </button>
+                                ))}
+                             </div>
+                         </div>
+
+                         {/* 4. APP SETTINGS TOGGLES */}
+                         <div className="space-y-3">
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-1 ml-1">ОСНОВНЫЕ</h3>
+                             
+                             <div className="p-4 bg-[#111] border border-[#222] rounded-2xl flex items-center justify-between">
+                                 <div className="flex items-center gap-3">
+                                     <Volume2 size={20} className="text-white/60"/>
+                                     <span className="text-sm font-bold text-white">Звук</span>
+                                 </div>
+                                 <button onClick={() => onUpdateSettings({...settings, sound: !settings.sound})} className={`w-12 h-6 rounded-full relative transition-colors ${settings.sound ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.sound ? 'left-7' : 'left-1'}`} />
+                                 </button>
+                             </div>
+
+                             <div className="p-4 bg-[#111] border border-[#222] rounded-2xl flex items-center justify-between">
+                                 <div className="flex items-center gap-3">
+                                     <Bell size={20} className="text-white/60"/>
+                                     <span className="text-sm font-bold text-white">Уведомления</span>
+                                 </div>
+                                 <button onClick={() => onUpdateSettings({...settings, notifications: !settings.notifications})} className={`w-12 h-6 rounded-full relative transition-colors ${settings.notifications ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.notifications ? 'left-7' : 'left-1'}`} />
+                                 </button>
+                             </div>
+
+                             <div className="p-4 bg-[#111] border border-[#222] rounded-2xl flex items-center justify-between">
+                                 <div className="flex items-center gap-3">
+                                     <SmartphoneCharging size={20} className="text-white/60"/>
+                                     <div className="flex flex-col">
+                                         <span className="text-sm font-bold text-white">Lite Режим</span>
+                                         <span className="text-[10px] text-white/40">Для слабых устройств</span>
+                                     </div>
+                                 </div>
+                                 <button onClick={() => onUpdateSettings({...settings, liteMode: !settings.liteMode})} className={`w-12 h-6 rounded-full relative transition-colors ${settings.liteMode ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.liteMode ? 'left-7' : 'left-1'}`} />
+                                 </button>
+                             </div>
+
+                             <div className="p-4 bg-[#111] border border-[#222] rounded-2xl flex items-center justify-between">
+                                 <div className="flex items-center gap-3">
+                                     <Activity size={20} className="text-white/60"/>
+                                     <span className="text-sm font-bold text-white">Пульсация фона</span>
+                                 </div>
+                                 <button onClick={() => onUpdateSettings({...settings, pulsing: !settings.pulsing})} className={`w-12 h-6 rounded-full relative transition-colors ${settings.pulsing ? 'bg-vellor-red' : 'bg-white/10'}`}>
+                                     <div className={`w-4 h-4 bg-white rounded-full absolute top-1 transition-all ${settings.pulsing ? 'left-7' : 'left-1'}`} />
+                                 </button>
+                             </div>
+                         </div>
+
+                         {/* 5. NOTIFICATION SOUND */}
+                         <div>
+                             <h3 className="text-[10px] font-black uppercase tracking-widest text-white/30 mb-3 ml-1">ЗВУК УВЕДОМЛЕНИЯ</h3>
+                             <div className="grid grid-cols-1 gap-2">
+                                 {NOTIFICATION_SOUNDS.map(sound => (
+                                     <button 
+                                         key={sound.id}
+                                         onClick={() => { onUpdateSettings({...settings, notificationSound: sound.id}); playPreviewSound(sound.url, sound.id); }}
+                                         className={`p-4 rounded-xl border flex items-center justify-between transition-all active:scale-95 ${settings.notificationSound === sound.id ? 'bg-white/10 border-vellor-red' : 'bg-[#111] border-[#222] hover:bg-white/5'}`}
+                                     >
+                                         <span className="text-xs font-bold text-white">{sound.name}</span>
+                                         {playingSoundId === sound.id ? <Volume2 size={16} className="text-vellor-red animate-pulse" /> : (settings.notificationSound === sound.id && <Check size={16} className="text-vellor-red" />)}
+                                     </button>
+                                 ))}
+                             </div>
+                         </div>
+                     </div>
+                 </div>
+             )}
+
+             {/* Rest of the modals (new_chat, create_group, etc.) standard render logic */}
+             {activeModal !== 'settings' && activeModal !== 'admin_login' && activeModal !== 'admin_panel' && activeModal !== 'nft' && (
                 <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
                     <div className="flex items-center gap-4">
                         {(activeModal === 'privacy' || activeModal === 'privacy_item' || activeModal === 'create_group') && (
-                            <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : activeModal === 'privacy_item' ? 'privacy' : 'settings')} className="p-2 text-white/40 hover:text-white transition-colors"><ChevronLeft size={24}/></button>
+                            <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : activeModal === 'privacy_item' ? 'privacy' : 'settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
                         )}
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">
-                        {activeModal === 'profile' ? 'Мой Профиль' : activeModal === 'settings' ? 'Настройки' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : 'Приватность'}
+                        {activeModal === 'profile' ? 'Мой Профиль' : activeModal === 'new_chat' ? 'Новый чат' : activeModal === 'create_group' ? 'Новая группа' : 'Приватность'}
                         </h2>
                     </div>
-                    <button onClick={() => setActiveModal(null)} className="p-2.5 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={20}/></button>
+                    <button onClick={() => setActiveModal(null)} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={20}/></button>
                 </div>
              )}
+
              <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                 {/* Re-implementing specific modals content is extremely large, assume standard content remains if not changed */}
                  {/* Re-injecting the critical create_group logic just in case context is lost */}
                  {activeModal === 'create_group' && (
                   <div className="space-y-6">
@@ -583,19 +683,19 @@ export const ChatList: React.FC<ChatListProps> = ({
                       <div className="space-y-2 h-64 overflow-y-auto custom-scrollbar">
                            <h4 className="text-[9px] font-bold uppercase tracking-widest opacity-40 sticky top-0 bg-[#0a0a0a] py-2 z-10">{searchQuery ? 'Результаты поиска' : 'Ваши контакты'}</h4>
                            {(searchQuery ? globalSearchResults : recentContacts).filter(u => !selectedUsersForGroup.some(s => s.id === u.id)).map(user => (
-                               <button key={user.id} onClick={() => setSelectedUsersForGroup(prev => [...prev, user])} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left">
+                               <button key={user.id} onClick={() => setSelectedUsersForGroup(prev => [...prev, user])} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left active:scale-98">
                                    <div className="w-9 h-9 rounded-full bg-gray-800 overflow-hidden shrink-0"><img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
                                    <div className="flex-1 min-w-0"><p className="text-sm font-bold truncate">{user.name}</p><p className="text-[10px] opacity-40 truncate">@{user.username || 'user'}</p></div>
                                    <div className="w-5 h-5 rounded-full border border-white/20" />
                                </button>
                            ))}
                       </div>
-                      <button onClick={handleCreateGroup} disabled={isCreatingGroup} className="w-full py-4 bg-vellor-red text-white font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+                      <button onClick={handleCreateGroup} disabled={isCreatingGroup} className="w-full py-4 bg-vellor-red text-white font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-red-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95">
                           {isCreatingGroup ? <Loader2 className="animate-spin" /> : 'Создать'}
                       </button>
                   </div>
               )}
-              {/* Profile, Settings, etc. render logic is standard */}
+              {/* Profile - USERNAME INPUT RESTORED */}
               {activeModal === 'profile' && (
                 <div className="space-y-8 pb-10">
                   <div className="flex flex-col items-center gap-6 relative">
@@ -624,31 +724,12 @@ export const ChatList: React.FC<ChatListProps> = ({
                   </div>
                 </div>
               )}
-              {/* Settings modal content... */}
-              {activeModal === 'settings' && (
-                  <div className="space-y-8 pb-10">
-                      {/* ... Settings implementation (unchanged logic, just layout) ... */}
-                      <section>
-                      <h3 className="text-[10px] font-black uppercase tracking-widest opacity-40 mb-4 ml-1">Мой статус</h3>
-                      <div className="grid grid-cols-2 gap-3">
-                        {(['online', 'away', 'dnd', 'offline'] as UserStatus[]).map(status => (
-                            <button key={status} onClick={() => onUpdateStatus(status)} className={`p-4 rounded-2xl border transition-all flex items-center gap-3 relative overflow-hidden group ${userProfile.status === status ? 'border-vellor-red/50 bg-vellor-red/10' : 'border-white/5 bg-white/5 hover:bg-white/10'}`}>
-                                <StatusIndicator status={status} size="w-2.5 h-2.5" />
-                                <span className="text-[10px] font-bold uppercase tracking-wider">{status === 'online' ? 'В сети' : status === 'away' ? 'Отошел' : status === 'dnd' ? 'Занят' : 'Скрыт'}</span>
-                            </button>
-                        ))}
-                      </div>
-                   </section>
-                   {/* ... Other settings sections ... */}
-                   <button onClick={() => setActiveModal('privacy')} className="w-full p-5 bg-gradient-to-r from-white/5 to-transparent border border-white/5 rounded-[20px] flex items-center justify-between group hover:border-white/10 transition-all">
-                       <span className="text-sm font-bold">Конфиденциальность</span> <ChevronRight size={18} className="opacity-20"/>
-                   </button>
-                  </div>
-              )}
              </div>
+             
+             {/* FOOTER ACTION BUTTON (Save for Profile) */}
              <div className="p-6 border-t border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
                {activeModal === 'profile' && (
-                 <button onClick={async () => { setIsSaving(true); await onSaveProfile(userProfile); setIsSaving(false); setActiveModal(null); }} disabled={isSaving} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50">
+                 <button onClick={async () => { setIsSaving(true); await onSaveProfile(userProfile); setIsSaving(false); setActiveModal(null); }} disabled={isSaving} className="w-full py-4 bg-white text-black font-black uppercase text-[11px] tracking-[0.3em] rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95">
                     {isSaving ? <Loader2 className="animate-spin" /> : 'Сохранить'}
                  </button>
                )}
