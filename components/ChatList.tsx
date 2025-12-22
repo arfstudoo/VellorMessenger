@@ -55,13 +55,13 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   useEffect(() => {
       const lastVersion = localStorage.getItem('vellor_version');
-      if (lastVersion !== '2.3.1') {
+      if (lastVersion !== '2.3.2') {
           setShowChangelogAlert(true);
       }
   }, []);
 
   const handleOpenChangelog = () => {
-      localStorage.setItem('vellor_version', '2.3.1');
+      localStorage.setItem('vellor_version', '2.3.2');
       setShowChangelogAlert(false);
       setActiveModal('changelog');
   };
@@ -205,7 +205,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     <button onClick={handleOpenChangelog} className="w-full bg-gradient-to-r from-vellor-red/20 to-transparent border border-vellor-red/30 rounded-xl p-2.5 flex items-center gap-3 mb-2 group">
                         <div className="bg-vellor-red rounded-lg p-1 text-white animate-pulse"><Sparkles size={14}/></div>
                         <div className="text-left flex-1">
-                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.1</p>
+                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.2</p>
                             <p className="text-[10px] text-white/70">Нажмите, чтобы узнать что нового</p>
                         </div>
                     </button>
@@ -334,56 +334,43 @@ export const ChatList: React.FC<ChatListProps> = ({
                             <button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
                             <div>
                                 <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">UPDATES</h2>
-                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.1</p>
+                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.2</p>
                             </div>
                         </div>
                         <div className="p-2 bg-vellor-red/10 rounded-lg"><History size={16} className="text-vellor-red"/></div>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar pb-24">
-                         {/* VERSION 2.3.1 (NEW) */}
+                         {/* VERSION 2.3.2 (NEW) */}
                          <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
                              <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
                              <div>
-                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Обнова для души</h3>
-                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.1</p>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vellor v2.3.2</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Четкое обновление</p>
                              </div>
                              
                              <div className="space-y-3">
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Phone size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Phone size={14} className="text-green-400"/> История звонков</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Bug size={14} className="text-red-400"/> Фиксы</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Короче, сделал историю звонков. Теперь видно кто звонил, кому звонили и сколько болтали.
+                                         Короче, починил техработы. Раньше они висели даже после выключения, теперь всё четко. Если вы админ — вас вообще не заблокирует.
                                      </p>
                                  </div>
 
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Zap size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Полезные штуки</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Кастомные профили</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         • <strong>QR Код:</strong> Заходи в профиль, там теперь твой QR. Даешь другу отсканить — и сразу в ЛС. Удобно.<br/>
-                                         • <strong>Цвет имени:</strong> Надоел белый? Заходи в настройки профиля и меняй цвет ника. Видно всем.<br/>
-                                         • <strong>Шапка профиля:</strong> Теперь можно менять фон за аватаркой. Добавил пару готовых градиентов, выглядит кайф.
-                                     </p>
-                                 </div>
-
-                                 <div className="p-4 bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/20 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Починил баги</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         • <strong>Техработы:</strong> Теперь они реально выключаются и не висят просто так.<br/>
-                                         • <strong>Группы:</strong> Галочки прочтения теперь видно и в групповых чатах.<br/>
-                                         • <strong>Звуки:</strong> Поправил звук уведомлений, теперь играет тот, что ты выбрал.
+                                         Добавил поле для ссылки на картинку. Теперь в профиле можно поставить ЛЮБОЙ фон, хоть гифку с котиками. Просто вставь ссылку.
                                      </p>
                                  </div>
                              </div>
                          </div>
 
-                         {/* VERSION 2.3.0 */}
+                         {/* VERSION 2.3.1 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div><h3 className="text-lg font-black text-white">Vellor Desktop X</h3><p className="text-[10px] text-white/40 font-mono">v2.3.0</p></div>
+                             <div><h3 className="text-lg font-black text-white">Обнова для души</h3><p className="text-[10px] text-white/40 font-mono">v2.3.1</p></div>
                              <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14}/> Desktop Controls</h4><p className="text-sm text-white/80 leading-relaxed">Сделал кнопки для окна на компе, чтобы красиво было.</p></div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Phone size={14}/> Звонки</h4><p className="text-sm text-white/80 leading-relaxed">Добавил историю звонков.</p></div>
                              </div>
                          </div>
                      </div>

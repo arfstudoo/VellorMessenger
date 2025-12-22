@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock, QrCode, Palette, Image as ImageIcon } from 'lucide-react';
+import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock, QrCode, Palette, Image as ImageIcon, Link } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { supabase } from '../../supabaseClient';
 
@@ -42,6 +42,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
+  const [customBannerUrl, setCustomBannerUrl] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -61,7 +62,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
   };
 
   const defaultBanner = `linear-gradient(135deg, #${userProfile.id.slice(0,6)} 0%, #000000 100%)`;
-  const currentBanner = userProfile.banner || defaultBanner;
+  const currentBanner = userProfile.banner?.startsWith('http') ? `url(${userProfile.banner}) center/cover no-repeat` : (userProfile.banner || defaultBanner);
   
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=vellor://u/${userProfile.id}&color=ffffff&bgcolor=000000`;
 
@@ -200,10 +201,30 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                     </div>
 
                     {/* BANNER PRESETS */}
-                    <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                    <div className="p-5 bg-white/5 border border-white/5 rounded-2xl space-y-4">
                         <h4 className="text-xs font-bold uppercase text-white mb-4 flex items-center gap-2">
                             <ImageIcon size={16} className="text-blue-400" /> Фон профиля
                         </h4>
+                        
+                        <div className="flex gap-2">
+                            <div className="bg-white/5 border border-white/10 rounded-xl px-3 flex items-center flex-1 focus-within:border-blue-500/50 transition-colors">
+                                <Link size={14} className="text-white/30 mr-2" />
+                                <input 
+                                    value={customBannerUrl}
+                                    onChange={(e) => setCustomBannerUrl(e.target.value)}
+                                    placeholder="Ссылка на картинку..."
+                                    className="bg-transparent w-full py-3 text-xs text-white outline-none"
+                                />
+                            </div>
+                            <button 
+                                onClick={() => onUpdateProfile({...userProfile, banner: customBannerUrl})}
+                                disabled={!customBannerUrl}
+                                className="px-4 bg-blue-500 rounded-xl text-white font-bold text-xs uppercase tracking-wider disabled:opacity-50 hover:bg-blue-600 transition-colors"
+                            >
+                                OK
+                            </button>
+                        </div>
+
                         <div className="grid grid-cols-2 gap-3">
                             {BANNER_PRESETS.map(preset => (
                                 <button 
@@ -217,7 +238,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                                 </button>
                             ))}
                         </div>
-                        <p className="text-[10px] text-white/40 mt-3 text-center">Видно всем, кто открывает ваш профиль.</p>
                     </div>
                 </MDiv>
             ) : (

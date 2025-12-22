@@ -426,9 +426,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
   const isOwner = chat.ownerId === myId;
 
-  // BANNER LOGIC
+  // BANNER LOGIC (Image or Gradient)
   const defaultBanner = `linear-gradient(135deg, #${chat.user.id.slice(0,6)} 0%, #000000 100%)`;
-  const infoBanner = chat.user.banner || defaultBanner;
+  const infoBanner = chat.user.banner 
+      ? (chat.user.banner.startsWith('http') ? `url(${chat.user.banner}) center/cover no-repeat` : chat.user.banner)
+      : defaultBanner;
 
   // IMPROVED TYPING TEXT LOGIC
   let typingText = "";

@@ -104,9 +104,9 @@ const App: React.FC = () => {
   const [isDatabaseError, setIsDatabaseError] = useState(false);
   
   // Maintenance State (Persistent)
-  // FIX: Explicitly check for string "true" to avoid "false" string being truthy
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => {
-      return localStorage.getItem('vellor_maintenance') === 'true';
+      const stored = localStorage.getItem('vellor_maintenance');
+      return stored === 'true';
   });
 
   // User Profile
@@ -267,8 +267,8 @@ const App: React.FC = () => {
                  isAdmin: u.is_admin, 
                  isVerified: u.is_verified, 
                  isBanned: u.is_banned,
-                 nameColor: u.name_color || prev.nameColor, // Sync Name Color
-                 banner: u.banner_url || prev.banner // Sync Banner
+                 nameColor: u.name_color || prev.nameColor, 
+                 banner: u.banner_url || prev.banner
              }));
         }
         handleRealtimePayload(payload);
@@ -343,9 +343,7 @@ const App: React.FC = () => {
   const handleMaintenanceToggle = async (active: boolean): Promise<boolean> => {
       if (!systemChannelRef.current) return false;
       try {
-          // Update local state immediately for the admin
           setIsMaintenanceMode(active);
-          // Store 'true' or 'false' string clearly
           localStorage.setItem('vellor_maintenance', active ? 'true' : 'false');
           await systemChannelRef.current.send({ type: 'broadcast', event: 'maintenance_toggle', payload: { active } });
           return true;
@@ -434,7 +432,7 @@ const App: React.FC = () => {
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
               phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
               isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false, isBanned: profile.is_banned || false, created_at: profile.created_at,
-              nameColor: profile.name_color, banner: profile.banner_url // Load Custom Fields
+              nameColor: profile.name_color, banner: profile.banner_url
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -455,8 +453,8 @@ const App: React.FC = () => {
               username: updatedProfile.username, 
               bio: updatedProfile.bio, 
               avatar_url: updatedProfile.avatar,
-              name_color: updatedProfile.nameColor, // Save Name Color
-              banner_url: updatedProfile.banner // Save Banner
+              name_color: updatedProfile.nameColor, 
+              banner_url: updatedProfile.banner 
           }).eq('id', updatedProfile.id);
           
           if (error) { showToast(error.code === '23505' ? "Этот юзернейм уже занят" : "Ошибка сохранения профиля", "error"); } 
@@ -492,6 +490,12 @@ const App: React.FC = () => {
   const retryConnection = () => { setIsDatabaseError(false); fetchChats(); };
   const activeChat = chats.find(c => c.id === activeChatId) || (tempChatUser?.id === activeChatId ? { id: activeChatId, user: tempChatUser, messages: [], unreadCount: 0, lastMessage: {} as Message } : null);
 
+  // MAINTENANCE LOGIC
+  // 1. If user is owner (arfstudoo) OR is Admin -> NEVER SHOW maintenance
+  // 2. Otherwise -> show if enabled
+  const isOwner = userProfile.username?.toLowerCase() === 'arfstudoo';
+  const showMaintenance = isMaintenanceMode && appState === 'app' && !userProfile.isAdmin && !isOwner;
+
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
       <TitleBar />
@@ -503,8 +507,8 @@ const App: React.FC = () => {
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
 
-      {/* Maintenance Overlay - Rendered conditionally but with high Z-index */}
-      {isMaintenanceMode && !userProfile.isAdmin && <MaintenanceOverlay />}
+      {/* Maintenance Overlay */}
+      {showMaintenance && <MaintenanceOverlay />}
 
       {/* Broadcast Overlay */}
       <AnimatePresence>
