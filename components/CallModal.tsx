@@ -105,6 +105,8 @@ export const CallModal: React.FC<CallModalProps> = ({
   useEffect(() => {
     if (localVideoRef.current && localStream) {
         localVideoRef.current.srcObject = localStream;
+        localVideoRef.current.muted = true; // IMPORTANT: Always mute local video
+        localVideoRef.current.play().catch(e => console.warn("Local video play error", e));
         
         // Mic Logic
         localStream.getAudioTracks().forEach(t => t.enabled = isMicOn && !isDeafened);

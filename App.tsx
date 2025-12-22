@@ -88,8 +88,8 @@ const THEMES_CONFIG = {
   }
 };
 
-const SQL_FIX_SCRIPT = `-- ULTIMATE UPDATE V1.4
--- RUN THIS IN SUPABASE SQL EDITOR
+const SQL_FIX_SCRIPT = `-- ULTIMATE UPDATE V1.5
+-- RUN THIS IN SUPABASE SQL EDITOR IF YOU HAVE ISSUES
 
 -- 1. Ensure Groups have description
 ALTER TABLE groups ADD COLUMN IF NOT EXISTS description TEXT;
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
 CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
 CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id);
 
--- 7. Recreate Data Fetch Function with Banned Status & Description
+-- 7. Recreate Data Fetch Function
 DROP FUNCTION IF EXISTS get_my_messenger_data();
 
 CREATE OR REPLACE FUNCTION get_my_messenger_data()
@@ -719,9 +719,11 @@ const App: React.FC = () => {
           const chatId = newMsg.group_id || (isMine ? newMsg.receiver_id : newMsg.sender_id);
           const chat = chatsRef.current.find(c => c.id === chatId);
 
-          if (!isMine && chat && !chat.isMuted) { 
+          // NEW LOGIC: If chat is found AND not muted, play sound. OR if chat is NOT found (new sender), play sound.
+          if (!isMine && (!chat || !chat.isMuted)) { 
               playNotificationSound();
-              const senderName = chat?.user.isGroup ? `${chat.user.name}` : (chat?.user.name || 'Новое сообщение');
+              // If chat doesn't exist, we assume unknown sender for notification
+              const senderName = chat ? (chat.user.isGroup ? chat.user.name : chat.user.name) : 'Новое сообщение';
               const notificationText = newMsg.type === 'image' ? 'Фото' : newMsg.type === 'audio' ? 'Голосовое' : newMsg.type === 'system' ? newMsg.content : newMsg.content;
               showToast(`${senderName}: ${notificationText}`, "info", chat?.user.avatar);
               sendBrowserNotification(senderName, notificationText, chat?.user.avatar);
@@ -997,6 +999,7 @@ const App: React.FC = () => {
               full_name: updatedProfile.name,
               username: updatedProfile.username,
               bio: updatedProfile.bio,
+              avatar_url: updatedProfile.avatar, // FIX: Save avatar URL to DB
               // Privacy Settings update
               privacy_phone: updatedProfile.privacy_phone,
               privacy_last_seen: updatedProfile.privacy_last_seen,

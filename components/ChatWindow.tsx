@@ -846,7 +846,13 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     </div>
 
                     {inputText.trim() || pendingFile ? (
-                        <button onClick={handleSend} disabled={isUploading} className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100">
+                        <button 
+                            onClick={handleSend} 
+                            onMouseDown={(e) => e.preventDefault()} // Critical fix for Mobile Safari blur issue
+                            disabled={isUploading} 
+                            className="p-3 bg-vellor-red rounded-2xl text-white shadow-lg shadow-vellor-red/20 active:scale-90 transition-transform disabled:opacity-50 disabled:scale-100 touch-manipulation"
+                            type="button"
+                        >
                             {isUploading ? <Loader2 className="animate-spin" size={20}/> : (editingMessageId ? <Check size={20}/> : <Send size={20}/>)}
                         </button>
                     ) : (

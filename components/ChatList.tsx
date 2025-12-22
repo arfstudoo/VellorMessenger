@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser, VolumeX, SmartphoneCharging, LayoutDashboard, Radio, MessageCircle, BarChart2, Ban, Unlock, FileText, ArrowLeft, History, Database, UserX, Skull, Volume1 } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser, VolumeX, SmartphoneCharging, LayoutDashboard, Radio, MessageCircle, BarChart2, Ban, Unlock, FileText, ArrowLeft, History, Database, UserX, Skull, Volume1, CheckCircle } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -815,7 +815,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                                      <span className="text-sm font-bold text-white">Список изменений</span>
                                  </div>
                                  <div className="flex items-center gap-2">
-                                     <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v1.4</span>
+                                     <span className="text-[9px] font-mono text-vellor-red bg-vellor-red/10 px-2 py-0.5 rounded-md">v1.6</span>
                                      <ChevronRight size={16} className="text-white/20 group-hover:text-white/50"/>
                                  </div>
                              </button>
@@ -887,47 +887,40 @@ export const ChatList: React.FC<ChatListProps> = ({
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                          
-                         {/* VERSION 1.4 */}
+                         {/* VERSION 1.6 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-vellor-red shadow-[0_0_10px_currentColor]" />
                              <div>
-                                 <h3 className="text-lg font-black text-white">Версия 1.4</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Только что</p>
+                                 <h3 className="text-lg font-black text-white">Версия 1.6</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">Mobile Patch</p>
                              </div>
-                             
                              <div className="space-y-3">
                                  <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-blue-400 mb-2 flex items-center gap-2"><MessageCircle size={14}/> Fix: Unread Counter</h4>
+                                     <h4 className="text-xs font-bold text-green-400 mb-2 flex items-center gap-2"><SmartphoneCharging size={14}/> Mobile Fixes</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Исправил баг, когда счетчик непрочитанных слетал после перезагрузки. Теперь система правильно запоминает, когда вы в последний раз читали группу, и сравнивает это с датой сообщений.
-                                     </p>
-                                 </div>
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-fuchsia-400 mb-2 flex items-center gap-2"><Sparkles size={14}/> UI Overhaul</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Полный редизайн настроек и окна NFT. Добавлено больше визуальных эффектов и анимаций. Исправлены баги отображения текста на мобильных.
+                                         Исправлена проблема с отправкой изображений на мобильных устройствах. Улучшена работа клавиатуры.
                                      </p>
                                  </div>
                              </div>
                          </div>
 
-                         {/* VERSION 1.3 */}
+                         {/* VERSION 1.5 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div>
-                                 <h3 className="text-lg font-black text-white">Версия 1.3</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Ранее</p>
+                                 <h3 className="text-lg font-black text-white">Версия 1.5</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">Stability</p>
                              </div>
                              <div className="space-y-3">
-                                <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14}/> Anti-Spam</h4>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><CheckCircle size={14}/> Stability & Calls</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Тротлинг сообщений и оптимизация групп.
+                                         Исправлены звонки, обновление аватара и уведомления.
                                      </p>
                                  </div>
                              </div>
                          </div>
-
+                         
                      </div>
                  </div>
              )}
@@ -948,6 +941,39 @@ export const ChatList: React.FC<ChatListProps> = ({
              )}
 
              <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+                 {/* NEW CHAT / GLOBAL SEARCH */}
+                 {activeModal === 'new_chat' && (
+                     <div className="space-y-6">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-3 text-white/30" size={16} />
+                            <input autoFocus value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск людей..." className="w-full bg-white/5 border border-white/5 rounded-2xl py-2.5 pl-10 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all" />
+                        </div>
+                        <button onClick={() => setActiveModal('create_group')} className="w-full p-4 flex items-center gap-4 bg-white/5 hover:bg-white/10 rounded-2xl transition-all active:scale-95 group">
+                            <div className="w-10 h-10 rounded-full bg-vellor-red/20 text-vellor-red flex items-center justify-center group-hover:scale-110 transition-transform"><Users size={20}/></div>
+                            <div className="text-left"><p className="text-sm font-bold text-white">Создать группу</p><p className="text-[10px] text-white/40">До 200,000 участников</p></div>
+                        </button>
+                        <div className="space-y-2">
+                            <h4 className="text-[9px] font-bold uppercase tracking-widest opacity-40 sticky top-0 bg-[#0a0a0a] py-2 z-10">{searchQuery ? 'Глобальный поиск' : 'Недавние'}</h4>
+                            {(searchQuery ? globalSearchResults : recentContacts).map(user => (
+                                <button key={user.id} onClick={() => { onSelectChat(user.id, user); setActiveModal(null); setSearchQuery(''); }} className="w-full p-2 flex items-center gap-3 hover:bg-white/5 rounded-xl transition-all text-left active:scale-98">
+                                   <div className="w-10 h-10 rounded-full bg-gray-800 overflow-hidden shrink-0"><img src={user.avatar || 'https://via.placeholder.com/40'} className="w-full h-full object-cover" /></div>
+                                   <div className="flex-1 min-w-0">
+                                       <p className="text-sm font-bold truncate flex items-center gap-1">
+                                           {user.name}
+                                           {user.isVerified && <BadgeCheck size={10} className="text-blue-400 fill-blue-400/20" />}
+                                       </p>
+                                       <p className="text-[10px] opacity-40 truncate">@{user.username || 'user'}</p>
+                                   </div>
+                                </button>
+                            ))}
+                            {searchQuery && !isSearchingGlobal && globalSearchResults.length === 0 && (
+                                <div className="text-center py-8 opacity-30 text-xs">Никого не найдено</div>
+                            )}
+                            {isSearchingGlobal && <div className="flex justify-center py-4"><Loader2 className="animate-spin text-white/30" /></div>}
+                        </div>
+                     </div>
+                 )}
+
                  {activeModal === 'create_group' && (
                   <div className="space-y-6">
                       <div className="flex flex-col items-center gap-4">
