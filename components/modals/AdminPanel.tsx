@@ -280,7 +280,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                         </div>
                         <div className="space-y-3">
                             <button onClick={handlePurgeOldMessages} disabled={isAdminActionLoading} className="w-full py-3 bg-red-500/20 hover:bg-red-500/40 rounded-xl text-red-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
-                                {isAdminActionLoading ? <Loader2 className="animate-spin" /> : <Trash2 size={14}/>} Purge Old Messages (&gt;30 days)
+                                {isAdminActionLoading ? <Loader2 className="animate-spin" /> : <Trash2 size={14}/>} Purge Old Messages ({'>'}30 days)
                             </button>
                         </div>
                 </div>

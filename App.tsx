@@ -199,6 +199,9 @@ const App: React.FC = () => {
   useEffect(() => { chatsRef.current = chats; }, [chats]);
   const userProfileRef = useRef<UserProfile | null>(null);
   const presenceChannelRef = useRef<any | null>(null);
+  
+  // NEW: Ref for System Broadcast Channel to ensure single connection
+  const systemChannelRef = useRef<any | null>(null);
 
   // Audio Context Ref (Better for iOS)
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -444,7 +447,7 @@ const App: React.FC = () => {
     localStorage.setItem('vellor_theme', currentTheme);
   }, [currentTheme]);
 
-  // --- PRESENCE LOGIC (FIXED & IMPROVED) ---
+  // --- PRESENCE LOGIC ---
   useEffect(() => {
     if (appState !== 'app' || !userProfile.id || isDatabaseError) return;
 
@@ -508,7 +511,9 @@ const App: React.FC = () => {
   useEffect(() => {
       if (appState !== 'app' || isDatabaseError) return;
       
+      // Use Ref to ensure single channel instance for system broadcasts
       const channel = supabase.channel('global_system');
+      systemChannelRef.current = channel;
       
       channel.on('broadcast', { event: 'system_alert' }, ({ payload }) => {
           const { message, title } = payload;
@@ -517,8 +522,27 @@ const App: React.FC = () => {
           playNotificationSound();
       }).subscribe();
 
-      return () => { supabase.removeChannel(channel); };
+      return () => { 
+          supabase.removeChannel(channel); 
+          systemChannelRef.current = null;
+      };
   }, [appState, isDatabaseError]);
+
+  // Handle Sending Broadcasts (Uses existing channel ref)
+  const handleBroadcast = async (message: string): Promise<boolean> => {
+      if (!systemChannelRef.current) return false;
+      try {
+          await systemChannelRef.current.send({
+              type: 'broadcast',
+              event: 'system_alert',
+              payload: { message, title: 'SYSTEM BROADCAST' }
+          });
+          return true;
+      } catch (e) {
+          console.error("Broadcast failed:", e);
+          return false;
+      }
+  };
 
   // --- TYPING BROADCAST LISTENER ---
   useEffect(() => {
@@ -1022,38 +1046,6 @@ const App: React.FC = () => {
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
-  // BROADCAST FUNCTION - FIX: Ensure channel subscribes before sending
-  const handleBroadcast = async (message: string): Promise<boolean> => {
-      try {
-          const channel = supabase.channel('global_system');
-          
-          return new Promise((resolve) => {
-              channel.subscribe(async (status) => {
-                  if (status === 'SUBSCRIBED') {
-                      await channel.send({
-                          type: 'broadcast',
-                          event: 'system_alert',
-                          payload: { message, title: 'SYSTEM BROADCAST' }
-                      });
-                      
-                      // Wait a bit to ensure delivery before cleanup
-                      setTimeout(() => {
-                          supabase.removeChannel(channel);
-                          resolve(true);
-                      }, 500);
-                  }
-                  
-                  if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-                      resolve(false);
-                  }
-              });
-          });
-      } catch (e) {
-          console.error("Broadcast failed:", e);
-          return false;
-      }
-  };
-
   const retryConnection = () => {
       setIsDatabaseError(false);
       fetchChats();
@@ -1117,7 +1109,7 @@ const App: React.FC = () => {
                       </div>
                   </div>
               ) : (
-                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={handleChatAction} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} onBroadcast={userProfile.isAdmin ? handleBroadcast : undefined} />
+                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={handleChatAction} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} onBroadcast={handleBroadcast} />
               )}
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
