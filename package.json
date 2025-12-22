@@ -1,7 +1,8 @@
+
 {
   "name": "vellor-messenger",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "electron/main.js",
   "description": "A premium, dark-themed messenger with glassmorphism aesthetics.",
   "author": "ArfStudio",
@@ -18,12 +19,12 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
-    "electron-log": "^5.4.3",
-    "electron-updater": "^6.6.2",
     "framer-motion": "^10.18.0",
     "lucide-react": "^0.309.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "electron-updater": "^6.1.7",
+    "electron-log": "^5.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
@@ -61,14 +62,6 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/icon.png"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/icon.png"
-    },
-    "linux": {
-      "target": "AppImage",
       "icon": "public/icon.png"
     }
   }

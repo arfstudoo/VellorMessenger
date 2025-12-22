@@ -8,6 +8,10 @@ const log = require('electron-log');
 autoUpdater.logger = log;
 autoUpdater.logger.transports.file.level = 'info';
 
+// CRITICAL FOR SELF-SIGNED/UNSIGNED APPS
+// This allows the app to update without a paid Code Signing Certificate ($400+/yr)
+autoUpdater.verifyUpdateCodeSignature = false;
+
 let mainWindow;
 
 function createWindow() {
@@ -56,7 +60,10 @@ function createWindow() {
   
   // Trigger update check once window is loaded
   mainWindow.once('ready-to-show', () => {
-    autoUpdater.checkForUpdatesAndNotify();
+    // Check for updates immediately on startup
+    autoUpdater.checkForUpdatesAndNotify().catch(err => {
+        log.error("Update check failed:", err);
+    });
   });
 }
 
@@ -83,4 +90,11 @@ autoUpdater.on('update-available', () => {
 autoUpdater.on('update-downloaded', () => {
   log.info('Update downloaded.');
   if(mainWindow) mainWindow.webContents.send('update_downloaded');
+  
+  // Optional: Force install immediately (uncomment if desired)
+  // autoUpdater.quitAndInstall();
+});
+
+autoUpdater.on('error', (err) => {
+    log.error("AutoUpdater Error: ", err);
 });
