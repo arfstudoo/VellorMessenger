@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles } from 'lucide-react';
-import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
+import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles, Phone, ArrowUpRight, ArrowDownLeft, Clock, AlertCircle } from 'lucide-react';
+import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType, CallLogItem } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 import { NOTIFICATION_SOUNDS } from '../constants';
@@ -14,6 +14,7 @@ import { ChatItem } from './chat/ChatItem';
 import { NewChatModal } from './modals/NewChatModal';
 import { CreateGroupModal } from './modals/CreateGroupModal';
 import { StatusIndicator } from './ui/StatusIndicator';
+import { CallHistoryModal } from './modals/CallHistoryModal';
 
 const MDiv = motion.div as any;
 
@@ -36,19 +37,34 @@ interface ChatListProps {
   onBroadcast?: (message: string) => Promise<boolean>; 
   onToggleMaintenance?: (active: boolean) => Promise<boolean>;
   isMaintenanceMode?: boolean;
+  callHistory: CallLogItem[];
 }
 
 export const ChatList: React.FC<ChatListProps> = ({ 
-  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers, onBroadcast, onToggleMaintenance, isMaintenanceMode
+  chats, activeChatId, onSelectChat, userProfile, onUpdateProfile, onSaveProfile, onSetTheme, currentThemeId, onUpdateStatus, settings, onUpdateSettings, typingUsers, onChatAction, showToast, onlineUsers, onBroadcast, onToggleMaintenance, isMaintenanceMode, callHistory
 }) => {
-  const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | 'admin_login' | 'admin_panel' | 'changelog' | null>(null);
+  const [activeModal, setActiveModal] = useState<'profile' | 'settings' | 'privacy' | 'privacy_item' | 'new_chat' | 'create_group' | 'nft' | 'admin_login' | 'admin_panel' | 'changelog' | 'calls' | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chat: Chat } | null>(null);
+  const [showChangelogAlert, setShowChangelogAlert] = useState(false);
   
   const [activeFolder, setActiveFolder] = useState<'all' | 'personal' | 'groups'>(() => {
       const saved = localStorage.getItem('vellor_active_folder');
       return (saved === 'personal' || saved === 'groups') ? saved : 'all';
   });
+
+  useEffect(() => {
+      const lastVersion = localStorage.getItem('vellor_version');
+      if (lastVersion !== '2.3.1') {
+          setShowChangelogAlert(true);
+      }
+  }, []);
+
+  const handleOpenChangelog = () => {
+      localStorage.setItem('vellor_version', '2.3.1');
+      setShowChangelogAlert(false);
+      setActiveModal('changelog');
+  };
 
   useEffect(() => {
       localStorage.setItem('vellor_active_folder', activeFolder);
@@ -181,6 +197,22 @@ export const ChatList: React.FC<ChatListProps> = ({
   return (
     <div className="flex flex-col h-full relative">
       <div className="p-4 flex flex-col gap-3 border-b border-[var(--border)] bg-black/10 backdrop-blur-sm sticky top-0 z-20">
+        
+        {/* CHANGELOG ALERT */}
+        <AnimatePresence>
+            {showChangelogAlert && (
+                <MDiv initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                    <button onClick={handleOpenChangelog} className="w-full bg-gradient-to-r from-vellor-red/20 to-transparent border border-vellor-red/30 rounded-xl p-2.5 flex items-center gap-3 mb-2 group">
+                        <div className="bg-vellor-red rounded-lg p-1 text-white animate-pulse"><Sparkles size={14}/></div>
+                        <div className="text-left flex-1">
+                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.1</p>
+                            <p className="text-[10px] text-white/70">Нажмите, чтобы узнать что нового</p>
+                        </div>
+                    </button>
+                </MDiv>
+            )}
+        </AnimatePresence>
+
         <div className="flex items-center justify-between">
             <button onClick={() => setIsMenuOpen(!isMenuOpen)} className="p-2.5 bg-white/5 rounded-xl text-white/40 hover:text-white transition-all active:scale-90"><Menu size={22}/></button>
             <div className="flex items-center justify-center">
@@ -201,10 +233,11 @@ export const ChatList: React.FC<ChatListProps> = ({
             </div>
         </div>
 
-        <div className="flex gap-2 mb-1">
-            <button onClick={() => setActiveFolder('all')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'all' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Все</button>
-            <button onClick={() => setActiveFolder('personal')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'personal' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Личные</button>
-            <button onClick={() => setActiveFolder('groups')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'groups' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Группы</button>
+        <div className="flex gap-2 mb-1 overflow-x-auto no-scrollbar">
+            <button onClick={() => setActiveFolder('all')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border min-w-[70px] ${activeFolder === 'all' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Все</button>
+            <button onClick={() => setActiveFolder('personal')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border min-w-[70px] ${activeFolder === 'personal' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Личные</button>
+            <button onClick={() => setActiveFolder('groups')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border min-w-[70px] ${activeFolder === 'groups' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>Группы</button>
+            <button onClick={() => setActiveModal('calls')} className={`px-3 py-2 rounded-xl text-white/40 border border-white/10 hover:bg-white/5 transition-all`}><Phone size={14}/></button>
         </div>
 
         <div className="relative group">
@@ -265,6 +298,7 @@ export const ChatList: React.FC<ChatListProps> = ({
         {activeModal && (
           <MDiv initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} transition={{ duration: 0.3 }} className="absolute inset-0 bg-[#0a0a0a] z-[60] flex flex-col overflow-hidden">
              {activeModal === 'nft' && <NftGallery onClose={() => setActiveModal(null)} />}
+             {activeModal === 'calls' && <CallHistoryModal onClose={() => setActiveModal(null)} history={callHistory} />}
              {activeModal === 'admin_login' && (
                  <div className="flex flex-col items-center justify-center h-full p-8 bg-black">
                      <ShieldAlert size={48} className="text-vellor-red mb-4" />
@@ -300,73 +334,64 @@ export const ChatList: React.FC<ChatListProps> = ({
                             <button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
                             <div>
                                 <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">UPDATES</h2>
-                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.0</p>
+                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.1</p>
                             </div>
                         </div>
                         <div className="p-2 bg-vellor-red/10 rounded-lg"><History size={16} className="text-vellor-red"/></div>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar pb-24">
-                         {/* VERSION 2.3.0 */}
+                         {/* VERSION 2.3.1 (NEW) */}
                          <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
                              <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
                              <div>
-                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vellor Desktop X</h3>
-                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Огромное обновление интерфейса</p>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">The "Quality of Life" Update</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.1 - Для людей</p>
                              </div>
                              
                              <div className="space-y-3">
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Monitor size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14} className="text-blue-400"/> Desktop Controls</h4>
+                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Phone size={48} /></div>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Phone size={14} className="text-green-400"/> История звонков</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Наконец-то завезли кастомные кнопки управления окном для ПК версии!
+                                         Больше не нужно гадать "сколько мы говорили?".
                                          <br/>
-                                         Больше никаких стандартных рамок Windows. Теперь закрыть, свернуть и развернуть окно можно стильно, прямо в интерфейсе приложения. Выглядит просто пушка, всё в стиле Glassmorphism.
-                                     </p>
-                                 </div>
-
-                                 <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Keyboard size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Keyboard size={14} className="text-purple-400"/> Hotkeys Support</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Добавили поддержку клавиши <span className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] font-mono border border-white/10">Esc</span>.
-                                         <br/>
-                                         Теперь можно мгновенно выходить из чата, закрывать профили или убирать зум с картинок одной кнопкой. Мелочь, а как удобно!
+                                         Добавлена полноценная история вызовов. Входящие, исходящие, пропущенные — всё фиксируется с точностью до секунды.
                                      </p>
                                  </div>
 
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
                                      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Zap size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Smart Typing</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Smart Interactions</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Полностью переписали логику индикатора "печатает...".
-                                         <br/>
-                                         В группах теперь <strong>видно конкретные имена</strong> тех, кто пишет сообщение! Больше не нужно гадать, кто именно строчит ответ.
+                                         • <strong>QR Код:</strong> В профиле теперь есть твой личный QR. Отсканировал — попал в ЛС. Никаких поисков.<br/>
+                                         • <strong>Double Tap:</strong> Два раза кликни по сообщению, чтобы ответить. Быстро, как ниндзя.<br/>
+                                         • <strong>Цвет имени:</strong> Выбери свой вайб. Теперь цвет ника можно менять в профиле (градиенты включены!).
                                      </p>
                                  </div>
 
                                  <div className="p-4 bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/20 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Maintenance Fix</h4>
+                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Критические фиксы</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Исправили критический баг с экраном технических работ.
-                                         Раньше оверлей мог не появляться или пропадать при перезагрузке. Теперь защита железобетонная — если сервер закрыт, никто (кроме админов) не пройдёт.
+                                         • <strong>Техработы:</strong> Экран больше не пропадает при F5. Если мы закрыты — мы закрыты.<br/>
+                                         • <strong>Группы:</strong> Галочки прочтения теперь показываются и в групповых чатах.<br/>
+                                         • <strong>Звуки:</strong> Починили баг, когда приложение игнорировало выбранный звук уведомления.
                                      </p>
                                  </div>
                              </div>
                          </div>
 
-                         {/* VERSION 2.2.1 */}
+                         {/* VERSION 2.3.0 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div><h3 className="text-lg font-black text-white">Версия 2.2.1</h3><p className="text-[10px] text-white/40 font-mono">Bug Fixes & Maintenance</p></div>
+                             <div><h3 className="text-lg font-black text-white">Vellor Desktop X</h3><p className="text-[10px] text-white/40 font-mono">v2.3.0</p></div>
                              <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-vellor-red mb-2 flex items-center gap-2"><Check size={14}/> Status Fix</h4><p className="text-sm text-white/80 leading-relaxed">Исправлена ошибка, из-за которой пользователи отображались "В сети" после выхода. Теперь статус синхронизируется в реальном времени.</p></div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14}/> Desktop Controls</h4><p className="text-sm text-white/80 leading-relaxed">Кастомные кнопки окна для ПК.</p></div>
                              </div>
                          </div>
                      </div>
                  </div>
              )}
-             {activeModal !== 'settings' && activeModal !== 'admin_login' && activeModal !== 'admin_panel' && activeModal !== 'nft' && activeModal !== 'privacy' && activeModal !== 'privacy_item' && activeModal !== 'changelog' && activeModal !== 'profile' && (
+             {activeModal !== 'settings' && activeModal !== 'admin_login' && activeModal !== 'admin_panel' && activeModal !== 'nft' && activeModal !== 'privacy' && activeModal !== 'privacy_item' && activeModal !== 'changelog' && activeModal !== 'profile' && activeModal !== 'calls' && (
                 <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
                     <div className="flex items-center gap-4">
                         {(activeModal === 'create_group') && <button onClick={() => setActiveModal(activeModal === 'create_group' ? 'new_chat' : 'settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>}

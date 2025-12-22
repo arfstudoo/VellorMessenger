@@ -10,12 +10,13 @@ export interface User {
   isFavorites?: boolean; 
   isGroup?: boolean; 
   bio?: string;
-  phone?: string;     // Added
-  email?: string;     // Added
+  phone?: string;
+  email?: string;
   username?: string;
   isVerified?: boolean; 
-  isAdmin?: boolean;  // Added for consistency
-  created_at?: string; // Added for "Member since"
+  isAdmin?: boolean;
+  created_at?: string;
+  nameColor?: string; // Added for custom name color
 }
 
 export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
@@ -31,8 +32,9 @@ export interface UserProfile {
   status: UserStatus;
   isAdmin?: boolean;      
   isVerified?: boolean;
-  isBanned?: boolean; // Added for Ban functionality
-  created_at?: string; // Added
+  isBanned?: boolean;
+  created_at?: string;
+  nameColor?: string; // Added
   
   // Privacy Settings
   privacy_phone?: PrivacyValue;
@@ -84,9 +86,19 @@ export interface Chat {
   lastMessage: Message;
   isPinned?: boolean; 
   isMuted?: boolean;
-  ownerId?: string; // Added: ID of the group creator
-  lastReadAt?: string | null; // Added for correct group unread calculation
+  ownerId?: string;
+  lastReadAt?: string | null;
 }
 
 export type CallType = 'audio' | 'video';
 export type CallState = 'idle' | 'calling' | 'incoming' | 'connected' | 'ended';
+
+export interface CallLogItem {
+    id: string;
+    partnerName: string;
+    partnerAvatar: string;
+    date: string;
+    duration: string;
+    type: CallType;
+    direction: 'incoming' | 'outgoing' | 'missed';
+}

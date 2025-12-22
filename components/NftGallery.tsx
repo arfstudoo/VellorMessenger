@@ -154,16 +154,17 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ onClose }) => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 + (index * 0.1), type: 'spring', damping: 20 }}
                 onClick={() => setSelectedNft(nft)}
-                whileHover={{ y: -5 }}
-                className="bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden hover:border-fuchsia-500/40 hover:shadow-[0_10px_40px_-10px_rgba(192,38,211,0.2)] transition-all cursor-pointer group relative aspect-[3/4] flex flex-col"
+                whileHover={{ y: -10, rotateX: 5, rotateY: 5 }}
+                className="bg-[#0a0a0a] border border-white/5 rounded-[2rem] overflow-hidden hover:border-fuchsia-500/40 hover:shadow-[0_20px_50px_-20px_rgba(192,38,211,0.4)] transition-all cursor-pointer group relative aspect-[3/4] flex flex-col transform perspective-1000"
                 >
                     {/* Image Container */}
                     <div className="flex-1 relative flex items-center justify-center p-4 overflow-hidden bg-gradient-to-b from-transparent to-black/20">
+                        <div className="absolute inset-0 bg-fuchsia-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
                         <div className="w-full h-full transition-transform duration-700 ease-out group-hover:scale-110 drop-shadow-2xl">
                             {nft.component}
                         </div>
                         
-                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform translate-y-2 group-hover:translate-y-0">
                             <div className="bg-white text-black p-2 rounded-full shadow-lg">
                                 <ArrowRight size={14} />
                             </div>
@@ -172,7 +173,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ onClose }) => {
 
                     {/* Info */}
                     <div className="p-5 bg-black/40 backdrop-blur-md border-t border-white/5 z-10 relative">
-                        <h3 className="text-sm font-black text-white truncate mb-1">{nft.name}</h3>
+                        <h3 className="text-sm font-black text-white truncate mb-1 group-hover:text-fuchsia-400 transition-colors">{nft.name}</h3>
                         <p className="text-[9px] text-white/40 uppercase tracking-wider font-bold mb-2">{nft.collection}</p>
                         <div className="flex items-center gap-2">
                             <div className={`w-1.5 h-1.5 rounded-full ${nft.rarity === 'Legendary' ? 'bg-orange-500' : 'bg-blue-500'} shadow-[0_0_8px_currentColor]`} />
@@ -261,8 +262,8 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ onClose }) => {
                             <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-6">{selectedNft.collection}</p>
                             
                             <div className="space-y-4">
-                                <div className="p-5 bg-gradient-to-br from-fuchsia-900/10 to-transparent border border-fuchsia-500/20 rounded-2xl relative overflow-hidden w-full">
-                                    <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-600/10 blur-[50px] rounded-full pointer-events-none" />
+                                <div className="p-5 bg-gradient-to-br from-fuchsia-900/10 to-transparent border border-fuchsia-500/20 rounded-2xl relative overflow-hidden w-full group/card hover:border-fuchsia-500/40 transition-colors">
+                                    <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-600/10 blur-[50px] rounded-full pointer-events-none group-hover/card:bg-fuchsia-600/20 transition-colors" />
                                     <h4 className="text-[10px] font-black uppercase tracking-widest text-fuchsia-400 mb-2 flex items-center gap-2">
                                         <Zap size={14} /> Utility
                                     </h4>
@@ -285,7 +286,7 @@ export const NftGallery: React.FC<NftGalleryProps> = ({ onClose }) => {
                         </div>
 
                         <div className="p-6 md:p-8 pt-0 shrink-0">
-                            <button className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-[0.2em] rounded-2xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-xl shadow-white/5">
+                            <button className="w-full py-4 bg-white text-black font-black uppercase text-xs tracking-[0.2em] rounded-2xl hover:bg-gray-200 transition-colors flex items-center justify-center gap-2 shadow-xl shadow-white/5 active:scale-95">
                                 Acquire Asset <ArrowRight size={16}/>
                             </button>
                         </div>

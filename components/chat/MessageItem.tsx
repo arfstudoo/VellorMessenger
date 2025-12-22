@@ -34,7 +34,7 @@ const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactN
     const scale = useTransform(x, [-50, 0], [1, 0.5]);
 
     return (
-        <div className="relative w-full">
+        <div className="relative w-full" onDoubleClick={onReply}>
             <MDiv style={{ opacity, scale }} className="absolute right-[-40px] top-1/2 -translate-y-1/2 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white z-0">
                 <Reply size={16} />
             </MDiv>
@@ -85,6 +85,9 @@ export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId
         } catch (e) {}
     }
 
+    // Determine custom color if available, default to vellor-red for sender names in groups
+    const senderNameColor = senderInfo.nameColor || 'var(--vellor-red)'; // Fallback
+
     return (
         <div id={`msg-${msg.id}`} className="w-full">
             <SwipeableMessage isMe={isMe} onReply={() => onReply(msg)}>
@@ -113,7 +116,8 @@ export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId
                         {!isMe && chatUser.isGroup && (
                             <div className="flex items-center gap-1 mb-1 ml-1">
                                 <button 
-                                    className="text-[10px] font-bold text-vellor-red hover:underline"
+                                    className="text-[10px] font-bold hover:underline"
+                                    style={{ color: senderNameColor === 'var(--vellor-red)' ? '#ff0033' : senderNameColor }}
                                     onClick={(e) => { e.stopPropagation(); onShowProfile && onShowProfile(senderInfo.id); }}
                                 >
                                     {senderInfo?.name}
@@ -157,6 +161,7 @@ export const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId
                         <div className="flex items-center justify-end gap-1 mt-0.5 px-1 opacity-40 select-none">
                             {msg.isEdited && <span className="text-[9px] mr-1">изм.</span>}
                             <span className="text-[10px]">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            {/* Always show ticks for own messages, regardless of group/DM */}
                             {isMe && <MessageStatus isRead={msg.isRead} isOwn={true} />}
                         </div>
 

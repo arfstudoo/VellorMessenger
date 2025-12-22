@@ -19,7 +19,7 @@ interface CallModalProps {
   myId: string;
   isCaller: boolean;
   onAnswer: () => void;
-  onEnd: () => void;
+  onEnd: (duration?: number) => void;
 }
 
 const ICE_SERVERS = {
@@ -58,6 +58,10 @@ export const CallModal: React.FC<CallModalProps> = ({
   const [remoteVolume, setRemoteVolume] = useState(1);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number } | null>(null);
 
+  // Duration Tracking
+  const [duration, setDuration] = useState(0);
+  const durationRef = useRef(0);
+
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -74,6 +78,30 @@ export const CallModal: React.FC<CallModalProps> = ({
       window.addEventListener('click', handleClick);
       return () => window.removeEventListener('click', handleClick);
   }, []);
+
+  // Timer Effect
+  useEffect(() => {
+    let interval: any;
+    if (callState === 'connected') {
+        interval = setInterval(() => {
+            setDuration(prev => {
+                const newVal = prev + 1;
+                durationRef.current = newVal;
+                return newVal;
+            });
+        }, 1000);
+    } else {
+        setDuration(0);
+        durationRef.current = 0;
+    }
+    return () => clearInterval(interval);
+  }, [callState]);
+
+  const formatDuration = (secs: number) => {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   // 1. Initial Media Setup (Audio Only first, or Audio+Video if requested)
   useEffect(() => {
@@ -158,7 +186,7 @@ export const CallModal: React.FC<CallModalProps> = ({
         onAnswer(); 
       })
       .on('broadcast', { event: 'call-end' }, () => {
-        onEnd();
+        onEnd(durationRef.current);
       })
       .on('broadcast', { event: 'call-metadata' }, ({ payload }) => {
          if (payload.from !== myId) {
@@ -278,7 +306,7 @@ export const CallModal: React.FC<CallModalProps> = ({
   };
 
   const handleManualEnd = () => {
-      onEnd();
+      onEnd(durationRef.current);
       supabase.channel(signalingChannelId).send({ type: 'broadcast', event: 'call-end', payload: { from: myId } });
   };
 
@@ -494,7 +522,7 @@ export const CallModal: React.FC<CallModalProps> = ({
               >
                   {callState === 'calling' ? 'Исходящий вызов...' : 
                    callState === 'incoming' ? 'Входящий вызов...' : 
-                   callState === 'connected' ? (partnerIsDeafened ? 'Собеседник заглушен' : (remoteIsScreenSharing ? 'Демонстрация экрана' : 'Соединение установлено')) : 'Завершение...'}
+                   callState === 'connected' ? (partnerIsDeafened ? 'Собеседник заглушен' : (remoteIsScreenSharing ? 'Демонстрация экрана' : formatDuration(duration))) : 'Завершение...'}
               </MP>
           </div>
 

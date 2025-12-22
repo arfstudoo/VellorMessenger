@@ -9,9 +9,9 @@ import { CallModal } from './components/CallModal';
 import { Toast, ToastType } from './components/Toast';
 import { MaintenanceOverlay } from './components/MaintenanceOverlay';
 import { TitleBar } from './components/TitleBar';
-import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus } from './types';
+import { Chat, Message, UserProfile, MessageType, User, CallState, CallType, UserStatus, CallLogItem } from './types';
 import { supabase } from './supabaseClient';
-import { ShieldAlert, RefreshCw, Lock } from 'lucide-react';
+import { ShieldAlert, RefreshCw, Lock, Radio } from 'lucide-react';
 import { NOTIFICATION_SOUNDS, CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK } from './constants';
 import { useChatData } from './hooks/useChatData';
 
@@ -103,8 +103,10 @@ const App: React.FC = () => {
   const [appState, setAppState] = useState<'loading' | 'auth' | 'app'>('loading');
   const [isDatabaseError, setIsDatabaseError] = useState(false);
   
-  // Maintenance State
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  // Maintenance State (Persistent)
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => {
+      return localStorage.getItem('vellor_maintenance') === 'true';
+  });
 
   // User Profile
   const [userProfile, setUserProfile] = useState<UserProfile>({ 
@@ -121,6 +123,11 @@ const App: React.FC = () => {
   const [onlineUsers, setOnlineUsers] = useState<Map<string, UserStatus>>(new Map());
   const [callData, setCallData] = useState<CallSession | null>(null);
   const [toast, setToast] = useState<{ message: string; type: ToastType; visible: boolean; icon?: string }>({ message: '', type: 'info', visible: false });
+  const [broadcastAlert, setBroadcastAlert] = useState<string | null>(null);
+  const [callHistory, setCallHistory] = useState<CallLogItem[]>(() => {
+      const saved = localStorage.getItem('vellor_calls');
+      return saved ? JSON.parse(saved) : [];
+  });
 
   // Refs
   const presenceChannelRef = useRef<any | null>(null);
@@ -142,6 +149,19 @@ const App: React.FC = () => {
   });
   const settingsRef = useRef(settings);
   useEffect(() => { settingsRef.current = settings; }, [settings]);
+
+  // Save Calls
+  useEffect(() => {
+      localStorage.setItem('vellor_calls', JSON.stringify(callHistory));
+  }, [callHistory]);
+
+  // Load Custom Name Color
+  useEffect(() => {
+      const savedColor = localStorage.getItem('vellor_name_color');
+      if (savedColor && userProfile.id) {
+          setUserProfile(prev => ({...prev, nameColor: savedColor}));
+      }
+  }, [userProfile.id]);
 
   // Audio & Notification Helpers
   const initAudioContext = () => {
@@ -179,6 +199,7 @@ const App: React.FC = () => {
       if (!settingsRef.current.notifications) return;
       const currentSettings = settingsRef.current;
       const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
+      // Use fallback URL preferentially if local file isn't guaranteed in electron build
       await playSound(soundDef.url, soundDef.fallback);
   };
 
@@ -323,6 +344,7 @@ const App: React.FC = () => {
       try {
           // Update local state immediately for the admin
           setIsMaintenanceMode(active);
+          localStorage.setItem('vellor_maintenance', String(active));
           await systemChannelRef.current.send({ type: 'broadcast', event: 'maintenance_toggle', payload: { active } });
           return true;
       } catch (e) { return false; }
@@ -333,12 +355,13 @@ const App: React.FC = () => {
       const channel = supabase.channel('global_system');
       systemChannelRef.current = channel;
       channel.on('broadcast', { event: 'system_alert' }, ({ payload }) => {
-          showToast(payload.message, 'info', 'https://cdn.lucide.dev/icon/radio.svg');
-          sendBrowserNotification(payload.title || 'SYSTEM BROADCAST', payload.message);
+          // Enhanced Broadcast UI
+          setBroadcastAlert(payload.message);
           playNotificationSound();
       });
       channel.on('broadcast', { event: 'maintenance_toggle' }, ({ payload }) => {
           setIsMaintenanceMode(payload.active);
+          localStorage.setItem('vellor_maintenance', String(payload.active));
       });
       channel.subscribe();
       return () => { supabase.removeChannel(channel); systemChannelRef.current = null; };
@@ -356,14 +379,12 @@ const App: React.FC = () => {
               let newList;
               
               if (payload.isTyping) {
-                  // Add user if not present
                   if (!currentList.includes(payload.name)) {
                       newList = [...currentList, payload.name];
                   } else {
                       newList = currentList;
                   }
               } else {
-                  // Remove user
                   newList = currentList.filter(name => name !== payload.name);
               }
               
@@ -387,6 +408,22 @@ const App: React.FC = () => {
   }, [appState, userProfile.id]);
 
   useEffect(() => { if (!callData || callData.state === 'connected' || callData.state === 'ended') stopRingtone(); }, [callData]);
+
+  const handleEndCall = (duration?: number) => {
+      if (callData && duration) {
+          const newItem: CallLogItem = {
+              id: Date.now().toString(),
+              partnerName: callData.partnerName,
+              partnerAvatar: callData.partnerAvatar,
+              date: new Date().toISOString(),
+              duration: `${Math.floor(duration/60)}:${(duration%60).toString().padStart(2, '0')}`,
+              type: callData.type,
+              direction: callData.isCaller ? 'outgoing' : 'incoming'
+          };
+          setCallHistory(prev => [newItem, ...prev]);
+      }
+      setCallData(null);
+  };
 
   const handleSplashComplete = async () => {
     try {
@@ -415,7 +452,11 @@ const App: React.FC = () => {
       try {
           const { error } = await supabase.from('profiles').update({ full_name: updatedProfile.name, username: updatedProfile.username, bio: updatedProfile.bio, avatar_url: updatedProfile.avatar }).eq('id', updatedProfile.id);
           if (error) { showToast(error.code === '23505' ? "Этот юзернейм уже занят" : "Ошибка сохранения профиля", "error"); } 
-          else { showToast("Профиль сохранен", "success"); setUserProfile(updatedProfile); }
+          else { 
+              showToast("Профиль сохранен", "success"); 
+              setUserProfile(updatedProfile);
+              if (updatedProfile.nameColor) localStorage.setItem('vellor_name_color', updatedProfile.nameColor);
+          }
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
@@ -427,7 +468,7 @@ const App: React.FC = () => {
           payload: { 
               chatId: activeChatId, 
               userId: userProfile.id, 
-              name: userProfile.name, // Sending Name is CRITICAL for group typing display
+              name: userProfile.name, 
               isTyping 
           } 
       });
@@ -458,12 +499,28 @@ const App: React.FC = () => {
       {/* Maintenance Overlay - Rendered conditionally but with high Z-index */}
       {isMaintenanceMode && !userProfile.isAdmin && <MaintenanceOverlay />}
 
+      {/* Broadcast Overlay */}
+      <AnimatePresence>
+          {broadcastAlert && (
+              <MDiv initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -100, opacity: 0 }} className="fixed top-10 left-0 right-0 z-[99999] flex justify-center p-4 pointer-events-none">
+                  <div className="bg-black/80 backdrop-blur-2xl border border-vellor-red/50 shadow-[0_0_50px_rgba(255,0,51,0.3)] rounded-2xl p-6 max-w-md w-full pointer-events-auto flex items-start gap-4">
+                      <div className="p-3 bg-vellor-red rounded-full shadow-lg shrink-0 animate-pulse"><Radio size={24} className="text-white"/></div>
+                      <div className="flex-1">
+                          <h3 className="text-sm font-black uppercase text-vellor-red tracking-widest mb-1">System Broadcast</h3>
+                          <p className="text-white/90 text-sm font-medium leading-relaxed">{broadcastAlert}</p>
+                          <button onClick={() => setBroadcastAlert(null)} className="mt-4 text-[10px] uppercase font-bold text-white/50 hover:text-white transition-colors">Dismiss</button>
+                      </div>
+                  </div>
+              </MDiv>
+          )}
+      </AnimatePresence>
+
       <AnimatePresence mode="wait">
         {appState === 'loading' && <SplashScreen onComplete={handleSplashComplete} />}
         {appState === 'auth' && <AuthScreen onComplete={(p) => { setUserProfile(p); setAppState('app'); }} />}
       </AnimatePresence>
       <AnimatePresence>
-        {callData && <CallModal callState={callData.state} callType={callData.type} partnerName={callData.partnerName} partnerAvatar={callData.partnerAvatar} partnerId={callData.partnerId} myId={userProfile.id} isCaller={callData.isCaller} onAnswer={() => setCallData(prev => prev ? { ...prev, state: 'connected' } : null)} onEnd={() => setCallData(null)} />}
+        {callData && <CallModal callState={callData.state} callType={callData.type} partnerName={callData.partnerName} partnerAvatar={callData.partnerAvatar} partnerId={callData.partnerId} myId={userProfile.id} isCaller={callData.isCaller} onAnswer={() => setCallData(prev => prev ? { ...prev, state: 'connected' } : null)} onEnd={(dur) => handleEndCall(dur)} />}
       </AnimatePresence>
 
       {appState === 'app' && (
@@ -499,6 +556,7 @@ const App: React.FC = () => {
                     onBroadcast={handleBroadcast} 
                     onToggleMaintenance={handleMaintenanceToggle}
                     isMaintenanceMode={isMaintenanceMode}
+                    callHistory={callHistory}
                   />
               )}
             </div>

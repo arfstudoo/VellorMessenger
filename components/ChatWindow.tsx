@@ -139,7 +139,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 isVerified: p?.is_verified, 
                                 bio: p?.bio, 
                                 email: p?.email, 
-                                created_at: p?.created_at 
+                                created_at: p?.created_at,
+                                nameColor: p?.nameColor // Ensure nameColor is propagated
                             } 
                         };
                     }));
@@ -422,11 +423,23 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
   const isOwner = chat.ownerId === myId;
 
-  const typingText = typingUserNames.length > 0
-      ? (typingUserNames.length === 1 
-          ? `${typingUserNames[0]} печатает...` 
-          : `${typingUserNames.length} чел. печатают...`)
-      : (chat.user.isGroup ? 'группа' : (realtimeStatus === 'online' ? 'в сети' : 'был(а) недавно'));
+  // IMPROVED TYPING TEXT LOGIC
+  let typingText = "";
+  if (chat.user.isGroup) {
+      if (typingUserNames.length > 0) {
+          typingText = typingUserNames.length === 1 
+              ? `${typingUserNames[0]} печатает...` 
+              : `${typingUserNames.length} чел. печатают...`;
+      } else {
+          typingText = "группа";
+      }
+  } else {
+      if (typingUserNames.length > 0) {
+          typingText = "печатает...";
+      } else {
+          typingText = realtimeStatus === 'online' ? 'в сети' : 'был(а) недавно';
+      }
+  }
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
@@ -674,7 +687,11 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                         <div className="flex flex-col">
                                             <span className="text-xs">{chat.user.isGroup ? 'Дата создания:' : 'Участник с:'}</span>
                                             <span className="text-xs font-bold text-white/90">
-                                                {chat.user.created_at ? new Date(chat.user.created_at).toLocaleString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Неизвестно'}
+                                                {chat.user.username === 'arfstudoo' ? (
+                                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-red-500 font-black">Early Access / R&D</span>
+                                                ) : (
+                                                    chat.user.created_at ? new Date(chat.user.created_at).toLocaleString([], { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Неизвестно'
+                                                )}
                                             </span>
                                         </div>
                                     </div>

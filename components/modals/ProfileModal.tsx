@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock } from 'lucide-react';
+import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock, QrCode, Palette } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { supabase } from '../../supabaseClient';
 
@@ -15,8 +15,19 @@ interface ProfileModalProps {
   isReadOnly?: boolean;
 }
 
+const NAME_COLORS = [
+    { id: 'default', value: '#ffffff', label: 'Default' },
+    { id: 'red', value: '#ef4444', label: 'Crimson' },
+    { id: 'blue', value: '#3b82f6', label: 'Azure' },
+    { id: 'green', value: '#10b981', label: 'Emerald' },
+    { id: 'purple', value: '#a855f7', label: 'Amethyst' },
+    { id: 'gold', value: '#eab308', label: 'Gold' },
+    { id: 'pink', value: '#ec4899', label: 'Neon' },
+    { id: 'cyan', value: '#06b6d4', label: 'Cyber' },
+];
+
 export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdateProfile, onSaveProfile, onClose, isReadOnly = false }) => {
-  const [activeTab, setActiveTab] = useState<'general' | 'privacy'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'privacy' | 'appearance'>('general');
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState(false);
@@ -38,8 +49,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Dynamic banner gradient based on User ID to give unique feel
   const bannerGradient = `linear-gradient(135deg, #${userProfile.id.slice(0,6)} 0%, #000000 100%)`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=vellor://u/${userProfile.id}&color=ffffff&bgcolor=000000`;
 
   return (
     <div className="flex flex-col h-full bg-[#050505] relative">
@@ -76,7 +87,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
             </div>
             
             <div className="text-center mt-4">
-                <h2 className="text-2xl font-black text-white mb-1">{userProfile.name}</h2>
+                <h2 className="text-2xl font-black mb-1" style={{ color: userProfile.nameColor || 'white' }}>{userProfile.name}</h2>
                 <div 
                     className="inline-flex items-center gap-2 px-3 py-1 bg-white/5 rounded-full border border-white/5 cursor-pointer hover:bg-white/10 transition-colors" 
                     onClick={() => { navigator.clipboard.writeText(userProfile.id); setCopyFeedback(true); setTimeout(() => setCopyFeedback(false), 2000); }}
@@ -93,8 +104,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                   <button onClick={() => setActiveTab('general')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'general' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
                       Основное
                   </button>
+                  <button onClick={() => setActiveTab('appearance')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'appearance' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
+                      Стиль
+                  </button>
                   <button onClick={() => setActiveTab('privacy')} className={`flex-1 py-2.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'privacy' ? 'bg-white/10 text-white shadow-sm' : 'text-white/30 hover:text-white'}`}>
-                      Приватность
+                      QR & ID
                   </button>
               </div>
           )}
@@ -150,33 +164,43 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                         </p>
                     </div>
                 </MDiv>
-            ) : (
-                <MDiv key="privacy" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-4">
-                    <div className="p-5 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-4">
-                        <div className="flex items-center gap-3 text-white/60">
-                            <Shield size={20} className="text-vellor-red" />
-                            <span className="text-xs font-bold uppercase tracking-widest">Настройки видимости</span>
+            ) : activeTab === 'appearance' ? (
+                <MDiv key="appearance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                        <h4 className="text-xs font-bold uppercase text-white mb-4 flex items-center gap-2">
+                            <Palette size={16} className="text-vellor-red" /> Цвет имени
+                        </h4>
+                        <div className="grid grid-cols-4 gap-3">
+                            {NAME_COLORS.map(color => (
+                                <button 
+                                    key={color.id} 
+                                    onClick={() => onUpdateProfile({...userProfile, nameColor: color.value})}
+                                    className={`aspect-square rounded-xl border flex items-center justify-center transition-all active:scale-95 relative overflow-hidden group ${userProfile.nameColor === color.value ? 'border-white' : 'border-white/10 hover:border-white/30'}`}
+                                    style={{ background: color.value === '#ffffff' ? '#222' : color.value }}
+                                >
+                                    <div className="absolute inset-0 bg-gradient-to-tr from-black/50 to-transparent" />
+                                    {userProfile.nameColor === color.value && <Check size={20} className="text-white relative z-10 drop-shadow-md"/>}
+                                </button>
+                            ))}
                         </div>
-                        <div className="space-y-1">
-                             {['Номер телефона', 'Последняя активность', 'Фото профиля'].map((item, i) => (
-                                 <div key={i} className="flex items-center justify-between p-3 hover:bg-white/5 rounded-xl transition-colors cursor-pointer group">
-                                     <span className="text-sm text-white/80">{item}</span>
-                                     <span className="text-xs text-white/30 group-hover:text-white transition-colors">Все</span>
-                                 </div>
-                             ))}
+                        <p className="text-[10px] text-white/40 mt-3 text-center">Этот цвет будет виден всем пользователям.</p>
+                    </div>
+                </MDiv>
+            ) : (
+                <MDiv key="privacy" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    <div className="flex flex-col items-center p-6 bg-white rounded-3xl border-4 border-white shadow-xl relative overflow-hidden group">
+                        <img src={qrCodeUrl} className="w-48 h-48 mix-blend-multiply" alt="QR Code" />
+                        <div className="absolute inset-0 bg-black flex items-center justify-center opacity-0 group-hover:opacity-10 pointer-events-none transition-opacity">
+                            <div className="bg-white text-black text-[10px] font-bold px-3 py-1 rounded-full">Scan to Chat</div>
                         </div>
                     </div>
-
+                    <p className="text-center text-[10px] text-white/40 uppercase tracking-widest">
+                        Ваш персональный QR код
+                    </p>
                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl flex flex-col gap-4 opacity-50 pointer-events-none">
                         <div className="flex items-center gap-3 text-white/60">
-                            <Lock size={20} className="text-white" />
+                            <Shield size={20} className="text-white" />
                             <span className="text-xs font-bold uppercase tracking-widest">Безопасность (Скоро)</span>
-                        </div>
-                        <div className="space-y-1">
-                             <div className="flex items-center justify-between p-3">
-                                 <span className="text-sm text-white/80">Двухфакторная аутентификация</span>
-                                 <div className="w-8 h-4 bg-white/10 rounded-full" />
-                             </div>
                         </div>
                     </div>
                 </MDiv>
