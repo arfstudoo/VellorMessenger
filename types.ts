@@ -48,7 +48,7 @@ export interface UserProfile {
   privacy_groups?: PrivacyValue;
 }
 
-export type MessageType = 'text' | 'image' | 'audio' | 'file';
+export type MessageType = 'text' | 'image' | 'audio' | 'file' | 'system';
 
 export interface Reaction {
   emoji: string;

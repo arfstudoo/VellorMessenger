@@ -64,6 +64,23 @@
         padding-bottom: env(safe-area-inset-bottom);
       }
 
+      /* ELECTRON DRAG REGION */
+      /* This allows dragging the window from the top area */
+      .app-drag-region {
+        -webkit-app-region: drag;
+        height: 30px;
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 9999;
+        pointer-events: none; /* Let clicks pass through to buttons underneath if needed, but usually header handles drag */
+      }
+      /* Elements that should be clickable inside the drag region (like close buttons) need -webkit-app-region: no-drag */
+      button, input, textarea, .no-drag {
+        -webkit-app-region: no-drag;
+      }
+
       ::-webkit-scrollbar { width: 5px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
@@ -79,17 +96,15 @@
       textarea, input { background: transparent; color: inherit; border: none; outline: none; }
 
       /* LITE MODE & MOBILE HARDCORE OPTIMIZATIONS */
-      /* Rules apply if body has .lite-mode OR screen is smaller than 768px (Phones) */
       @media (max-width: 768px) {
         * {
           backdrop-filter: none !important;
           -webkit-backdrop-filter: none !important;
           box-shadow: none !important;
           text-shadow: none !important;
-          transition-property: opacity, transform !important; /* Only animate cheap properties */
+          transition-property: opacity, transform !important; 
         }
 
-        /* Replace glass effect with solid dark colors for performance */
         .backdrop-blur-3xl,
         .backdrop-blur-2xl,
         .backdrop-blur-xl,
@@ -101,16 +116,14 @@
         .bg-black\/30,
         .bg-black\/40,
         .bg-black\/50 {
-          background-color: #080808 !important; /* Solid nearly black */
+          background-color: #080808 !important; 
           border: 1px solid rgba(255, 255, 255, 0.08) !important;
         }
         
-        /* Ensure text remains visible on solid backgrounds */
         input, textarea {
             background-color: transparent !important;
         }
         
-        /* Disable hover effects on touch devices to prevent sticky states */
         .hover\:scale-110:hover, 
         .hover\:scale-105:hover,
         .hover\:bg-white\/10:hover {
@@ -141,13 +154,16 @@
     "react": "https://aistudiocdn.com/react@^19.2.1",
     "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.26",
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
-    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm"
+    "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.0"
   }
 }
 </script>
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>
+    <div class="app-drag-region"></div>
     <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
 </body>

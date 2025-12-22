@@ -88,85 +88,45 @@ const THEMES_CONFIG = {
   }
 };
 
-const SQL_FIX_SCRIPT = `-- OPTIMIZED SCRIPT (With Reply Support)
--- Run in Supabase SQL Editor
+const SQL_FIX_SCRIPT = `-- OPTIMIZED SQL SCRIPT
+-- RUN THIS IN SUPABASE SQL EDITOR
 
--- 1. CLEANUP
-DROP FUNCTION IF EXISTS get_my_messenger_data();
-DROP FUNCTION IF EXISTS claim_admin();
+-- 1. Create chat_settings table if not exists (for Pinning/Muting)
+CREATE TABLE IF NOT EXISTS chat_settings (
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  partner_id UUID NOT NULL, -- Can be a user_id OR a group_id
+  is_pinned BOOLEAN DEFAULT FALSE,
+  is_muted BOOLEAN DEFAULT FALSE,
+  PRIMARY KEY (user_id, partner_id)
+);
 
--- 2. SCHEMA UPDATE
-DO $$ 
-BEGIN 
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'group_members' AND column_name = 'is_admin') THEN
-    ALTER TABLE group_members ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'is_admin') THEN
-    ALTER TABLE profiles ADD COLUMN is_admin BOOLEAN DEFAULT FALSE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'profiles' AND column_name = 'is_verified') THEN
-    ALTER TABLE profiles ADD COLUMN is_verified BOOLEAN DEFAULT FALSE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'group_id') THEN
-    ALTER TABLE messages ADD COLUMN group_id UUID REFERENCES groups(id) ON DELETE CASCADE;
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'group_members' AND column_name = 'last_read_at') THEN
-    ALTER TABLE group_members ADD COLUMN last_read_at TIMESTAMPTZ DEFAULT NOW();
-  END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'reactions') THEN
-    ALTER TABLE messages ADD COLUMN reactions JSONB DEFAULT '[]'::jsonb;
-  END IF;
-  -- NEW: Reply Support
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'reply_to_id') THEN
-    ALTER TABLE messages ADD COLUMN reply_to_id UUID REFERENCES messages(id) ON DELETE SET NULL;
-  END IF;
-END $$;
+ALTER TABLE chat_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Users can manage their own settings" ON chat_settings;
+CREATE POLICY "Users can manage their own settings" ON chat_settings
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
 
+-- 2. Ensure Messages table has group_id
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES groups(id) ON DELETE CASCADE;
 ALTER TABLE messages ALTER COLUMN receiver_id DROP NOT NULL;
 
--- 3. RLS POLICIES
-ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
-ALTER TABLE group_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE messages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+-- 3. Optimization: Indexing
+CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
+CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
+CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id);
 
-DROP POLICY IF EXISTS "Enable all for groups" ON groups;
-DROP POLICY IF EXISTS "Enable all for members" ON group_members;
-DROP POLICY IF EXISTS "Enable all for messages" ON messages;
-DROP POLICY IF EXISTS "Public read profiles" ON profiles;
-DROP POLICY IF EXISTS "Owner or Admin update profiles" ON profiles;
-DROP POLICY IF EXISTS "Insert profiles" ON profiles;
+-- 4. Recreate Data Fetch Function
+DROP FUNCTION IF EXISTS get_my_messenger_data();
 
-CREATE POLICY "Enable all for groups" ON groups FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Enable all for members" ON group_members FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Enable all for messages" ON messages FOR ALL USING (true) WITH CHECK (true);
-
-CREATE POLICY "Public read profiles" ON profiles FOR SELECT USING (true);
-CREATE POLICY "Owner or Admin update profiles" ON profiles FOR UPDATE USING (
-  auth.uid() = id OR 
-  (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
-) WITH CHECK (
-  auth.uid() = id OR 
-  (SELECT is_admin FROM profiles WHERE id = auth.uid()) = true
-);
-CREATE POLICY "Insert profiles" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);
-
--- 4. AUTO-ADMIN FUNCTION
-CREATE OR REPLACE FUNCTION claim_admin()
-RETURNS void AS $$
-BEGIN
-  -- Sets the caller as admin and verified
-  UPDATE profiles SET is_admin = true, is_verified = true WHERE id = auth.uid();
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- 5. DATA FETCH FUNCTION
 CREATE OR REPLACE FUNCTION get_my_messenger_data()
 RETURNS json AS $$
 DECLARE
   _user_id uuid := auth.uid();
   result json;
 BEGIN
+  -- Fetch groups, messages, and partner profiles in one go logic
+  -- Note: We return raw arrays to be processed by client for flexibility
   SELECT json_build_object(
     'groups', (
       SELECT COALESCE(json_agg(g_info), '[]'::json)
@@ -179,34 +139,35 @@ BEGIN
     ),
     'private_messages', (
       SELECT COALESCE(json_agg(m), '[]'::json)
-      FROM messages m
-      WHERE (m.sender_id = _user_id OR m.receiver_id = _user_id)
-      AND m.group_id IS NULL
+      FROM (
+        SELECT * FROM messages 
+        WHERE (sender_id = _user_id OR receiver_id = _user_id)
+        AND group_id IS NULL
+        ORDER BY created_at DESC
+        LIMIT 1000 -- Optimization limit
+      ) m
     ),
     'group_messages', (
-      SELECT COALESCE(json_agg(t), '[]'::json)
+      SELECT COALESCE(json_agg(m), '[]'::json)
       FROM (
-        SELECT m.id, m.sender_id, m.group_id, m.content, m.created_at, m.type,
-               m.media_url, m.is_pinned, m.is_edited, m.file_name, m.file_size, m.duration,
-               m.reactions, m.reply_to_id,
-               CASE 
-                 WHEN m.sender_id = _user_id THEN false 
-                 WHEN m.created_at <= gm.last_read_at THEN true
-                 ELSE false
-               END as is_read
-        FROM messages m
-        JOIN group_members gm ON m.group_id = gm.group_id
+        SELECT msg.* 
+        FROM messages msg
+        JOIN group_members gm ON msg.group_id = gm.group_id
         WHERE gm.user_id = _user_id
-        AND m.group_id IS NOT NULL
-      ) t
+        AND msg.group_id IS NOT NULL
+        ORDER BY msg.created_at DESC
+        LIMIT 1000 -- Optimization limit
+      ) m
+    ),
+    'settings', (
+      SELECT COALESCE(json_agg(cs), '[]'::json)
+      FROM chat_settings cs
+      WHERE cs.user_id = _user_id
     )
   ) INTO result;
   RETURN result;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
-
--- 6. REFRESH
-NOTIFY pgrst, 'reload config';
 `;
 
 interface CallSession {
@@ -261,7 +222,6 @@ const App: React.FC = () => {
 
   const [settings, setSettings] = useState(() => {
     const saved = localStorage.getItem('vellor_settings');
-    // Default pulsing to true if not present, sound/notifications to true, notificationSound to default
     const defaults = { sound: true, notifications: true, pulsing: true, liteMode: false, notificationSound: 'default' };
     if (!saved) return defaults;
     const parsed = JSON.parse(saved);
@@ -299,7 +259,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const unlockAudio = () => {
         initAudioContext();
-        // Play silent buffer to unlock
         if (audioContextRef.current) {
             const buffer = audioContextRef.current.createBuffer(1, 1, 22050);
             const source = audioContextRef.current.createBufferSource();
@@ -319,7 +278,9 @@ const App: React.FC = () => {
   }, []);
 
   const playSound = async (url: string, fallbackUrl?: string, loop: boolean = false) => {
+      // STRICT CHECK: If global sound setting is off, do NOT play anything
       if (!settingsRef.current.sound) return;
+      
       initAudioContext();
       if (!audioContextRef.current) return;
 
@@ -338,7 +299,6 @@ const App: React.FC = () => {
               audioBuffer = await loadBuffer(url);
           } catch (e) {
               if (fallbackUrl) {
-                  console.warn(`Local sound ${url} not found, using fallback.`);
                   audioBuffer = await loadBuffer(fallbackUrl);
               } else {
                   throw e;
@@ -357,13 +317,14 @@ const App: React.FC = () => {
   };
 
   const playNotificationSound = async () => {
+      if (!settingsRef.current.notifications) return; // Also check notification specific setting
       const currentSettings = settingsRef.current;
       const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
       await playSound(soundDef.url, soundDef.fallback);
   };
 
   const startRingtone = async () => {
-      if (ringtoneSourceRef.current) return; // Already playing
+      if (ringtoneSourceRef.current) return;
       const source = await playSound(CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK, true);
       if (source) {
           ringtoneSourceRef.current = source;
@@ -385,17 +346,13 @@ const App: React.FC = () => {
     setToast({ message, type, visible: true, icon });
   };
 
-  // --- NOTIFICATION PERMISSIONS ---
   const requestNotificationPermission = useCallback(async () => {
       if (!("Notification" in window)) return;
       if (Notification.permission === 'granted') return;
       if (Notification.permission === 'default') {
           showToast("Включите уведомления, чтобы не пропускать сообщения", "info");
           try {
-              const permission = await Notification.requestPermission();
-              if (permission === 'granted') {
-                  showToast("Уведомления успешно включены!", "success");
-              }
+              await Notification.requestPermission();
           } catch (e) {
               console.error("Permission request failed", e);
           }
@@ -524,7 +481,6 @@ const App: React.FC = () => {
     };
   }, [appState, userProfile.id]);
 
-  // Handle Call End / Answer (Stop Ringtone)
   useEffect(() => {
       if (!callData || callData.state === 'connected' || callData.state === 'ended') {
           stopRingtone();
@@ -543,21 +499,25 @@ const App: React.FC = () => {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, [appState, userProfile.id]);
 
-  // --- FETCH DATA ---
+  // --- FETCH DATA (OPTIMIZED) ---
   const fetchChats = useCallback(async () => {
     if (!userProfile.id) return;
     try {
         const { data, error } = await supabase.rpc('get_my_messenger_data');
         if (error) { setErrorDetail(error.message); setIsDatabaseError(true); return; }
 
+        // Process Groups
         const groups = data.groups || [];
+        // Process Messages (Combined)
         const allMessages = [...(data.private_messages || []), ...(data.group_messages || [])];
-        const { data: chatSettings } = await supabase.from('chat_settings').select('*').eq('user_id', userProfile.id);
+        // Process Settings (Pinned/Muted)
+        const chatSettings = data.settings || [];
         const settingsMap = new Map();
-        chatSettings?.forEach(s => settingsMap.set(s.partner_id, s));
+        chatSettings.forEach((s: any) => settingsMap.set(s.partner_id, s));
 
         const chatsMap = new Map<string, Chat>();
 
+        // Init Groups
         groups.forEach((g: any) => {
             const s = settingsMap.get(g.id);
             chatsMap.set(g.id, {
@@ -568,31 +528,25 @@ const App: React.FC = () => {
             });
         });
 
+        // Identify DM Partners
         const partnerIds = new Set<string>();
         (data.private_messages || []).forEach((m: any) => {
-            partnerIds.add(m.sender_id === userProfile.id ? m.receiver_id : m.sender_id);
+            const pid = m.sender_id === userProfile.id ? m.receiver_id : m.sender_id;
+            if (pid) partnerIds.add(pid);
         });
         partnerIds.delete(userProfile.id);
 
+        // Fetch DM Profiles
         if (partnerIds.size > 0) {
             const { data: profiles } = await supabase.from('profiles').select('*').in('id', Array.from(partnerIds));
             profiles?.forEach(p => {
                 const pid = p.id;
                 const s = settingsMap.get(pid);
-                // Correctly map fields for User Info panel
                 chatsMap.set(pid, {
                     id: pid,
                     user: { 
-                        id: pid, 
-                        name: p.full_name, 
-                        avatar: p.avatar_url, 
-                        status: p.status || 'offline', 
-                        username: p.username, 
-                        isGroup: false, 
-                        isVerified: p.is_verified,
-                        bio: p.bio,              // Mapped
-                        email: p.email,          // Mapped if available in profile (depends on RLS)
-                        created_at: p.created_at // Mapped
+                        id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', 
+                        username: p.username, isGroup: false, isVerified: p.is_verified, bio: p.bio, email: p.email, created_at: p.created_at 
                     },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                     isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false
@@ -600,6 +554,7 @@ const App: React.FC = () => {
             });
         }
 
+        // Distribute Messages
         allMessages.forEach((msg: any) => {
             const chatId = msg.group_id || (msg.sender_id === userProfile.id ? msg.receiver_id : msg.sender_id);
             const chat = chatsMap.get(chatId);
@@ -620,13 +575,13 @@ const App: React.FC = () => {
             }
         });
 
+        // Sort: Pinned first, then by date
         for (const chat of chatsMap.values()) {
             chat.messages.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
         }
 
         setChats(Array.from(chatsMap.values()).sort((a,b) => {
-            if (a.isPinned && !b.isPinned) return -1;
-            if (!a.isPinned && b.isPinned) return 1;
+            if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
             return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
         }));
         setIsDatabaseError(false);
@@ -635,66 +590,40 @@ const App: React.FC = () => {
 
   useEffect(() => { if (appState === 'app' && userProfile.id) fetchChats(); }, [appState, userProfile.id, fetchChats]);
 
-  // --- REALTIME UPDATES ---
   const handleRealtimePayload = useCallback((payload: any) => { 
-      // 1. Handle INSERT (New Message)
       if (payload.eventType === 'INSERT' && payload.table === 'messages') {
           const newMsg = payload.new;
           const myId = userProfileRef.current?.id;
-
-          // CRITICAL FIX: Filter out messages not intended for this user.
           const isMine = newMsg.sender_id === myId;
           const isForMe = newMsg.receiver_id === myId;
           const isMyGroup = newMsg.group_id && chatsRef.current.some(c => c.id === newMsg.group_id);
 
-          if (!isMine && !isForMe && !isMyGroup) {
-              return; // Ignore unrelated message
-          }
+          if (!isMine && !isForMe && !isMyGroup) return;
 
           const chatId = newMsg.group_id || (isMine ? newMsg.receiver_id : newMsg.sender_id);
+          const chat = chatsRef.current.find(c => c.id === chatId);
 
-          if (!isMine) {
+          if (!isMine && chat && !chat.isMuted) { // CHECK MUTE STATUS
               playNotificationSound();
-              
-              const chat = chatsRef.current.find(c => c.id === chatId);
-              const senderName = chat?.user.isGroup 
-                  ? `${chat.user.name} (Группа)` 
-                  : (chat?.user.name || 'Новое сообщение');
-              
-              const notificationText = newMsg.type === 'image' ? 'Отправил фото' : 
-                                       newMsg.type === 'audio' ? 'Голосовое сообщение' : 
-                                       newMsg.content;
-
+              const senderName = chat?.user.isGroup ? `${chat.user.name}` : (chat?.user.name || 'Новое сообщение');
+              const notificationText = newMsg.type === 'image' ? 'Фото' : newMsg.type === 'audio' ? 'Голосовое' : newMsg.type === 'system' ? newMsg.content : newMsg.content;
               showToast(`${senderName}: ${notificationText}`, "info", chat?.user.avatar);
               sendBrowserNotification(senderName, notificationText, chat?.user.avatar);
           }
 
           setChats(prevChats => {
              const chatIndex = prevChats.findIndex(c => c.id === chatId);
-             if (chatIndex === -1) {
-                 fetchChats();
-                 return prevChats; 
-             }
+             if (chatIndex === -1) { fetchChats(); return prevChats; }
              
              const updatedChats = [...prevChats];
              const chat = { ...updatedChats[chatIndex] };
              
              const message: Message = {
-                 id: newMsg.id,
-                 senderId: isMine ? 'me' : newMsg.sender_id,
-                 text: newMsg.content || '',
-                 type: newMsg.type,
-                 timestamp: new Date(newMsg.created_at),
-                 isRead: newMsg.is_read, 
-                 mediaUrl: newMsg.media_url,
-                 isPinned: newMsg.is_pinned,
-                 isEdited: newMsg.is_edited,
-                 duration: newMsg.duration,
-                 fileName: newMsg.file_name,
-                 fileSize: newMsg.file_size,
-                 groupId: newMsg.group_id,
-                 reactions: newMsg.reactions || [],
-                 replyToId: newMsg.reply_to_id
+                 id: newMsg.id, senderId: isMine ? 'me' : newMsg.sender_id, text: newMsg.content || '',
+                 type: newMsg.type, timestamp: new Date(newMsg.created_at), isRead: newMsg.is_read, 
+                 mediaUrl: newMsg.media_url, isPinned: newMsg.is_pinned, isEdited: newMsg.is_edited,
+                 duration: newMsg.duration, fileName: newMsg.file_name, fileSize: newMsg.file_size,
+                 groupId: newMsg.group_id, reactions: newMsg.reactions || [], replyToId: newMsg.reply_to_id
              };
 
              if (!chat.messages.some(m => m.id === message.id)) {
@@ -704,24 +633,20 @@ const App: React.FC = () => {
              }
              
              updatedChats[chatIndex] = chat;
+             // Maintain sort order: Pinned first, then date
              return updatedChats.sort((a,b) => {
-                 if (a.isPinned && !b.isPinned) return -1;
-                 if (!a.isPinned && b.isPinned) return 1;
+                 if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
                  return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
              });
           });
       } 
-      // 2. Handle UPDATE
       else if (payload.eventType === 'UPDATE' && payload.table === 'messages') {
           setChats(prev => prev.map(c => {
               const updatedMessages = c.messages.map(m => {
                   if (m.id === payload.new.id) {
                       return {
-                          ...m,
-                          isRead: payload.new.is_read,
-                          isPinned: payload.new.is_pinned,
-                          isEdited: payload.new.is_edited,
-                          text: payload.new.content || m.text,
+                          ...m, isRead: payload.new.is_read, isPinned: payload.new.is_pinned,
+                          isEdited: payload.new.is_edited, text: payload.new.content || m.text,
                           reactions: payload.new.reactions || m.reactions
                       };
                   }
@@ -730,50 +655,19 @@ const App: React.FC = () => {
               return { ...c, messages: updatedMessages };
           }));
       } 
-      // 3. Handle DELETE
       else if (payload.eventType === 'DELETE' && payload.table === 'messages') {
           setChats(prev => prev.map(c => ({ ...c, messages: c.messages.filter(m => m.id !== payload.old.id) })));
       }
-      // 4. Handle PROFILE updates (Admin actions / Changes)
       else if (payload.eventType === 'UPDATE' && payload.table === 'profiles') {
           const updatedProfile = payload.new;
-          
           if (updatedProfile.id === userProfileRef.current?.id) {
-              // --- NOTIFICATIONS FOR SELF ---
               const currentProfile = userProfileRef.current;
               if (!currentProfile) return;
-
-              // 1. Verification Changed
               if (!currentProfile.isVerified && updatedProfile.is_verified) {
-                  showToast("Ваш аккаунт официально подтвержден администратором!", "success", "https://em-content.zobj.net/source/apple/391/check-mark-button_2705.png");
-                  playNotificationSound();
-              } else if (currentProfile.isVerified && !updatedProfile.is_verified) {
-                  showToast("Статус верификации снят.", "warning");
+                  showToast("Аккаунт верифицирован!", "success");
               }
-
-              // 2. Admin Status Changed
-              const wasAdmin = !!currentProfile.isAdmin;
-              const isNowAdmin = !!updatedProfile.is_admin;
-
-              if (!wasAdmin && isNowAdmin) {
-                  showToast("Вам выданы права Администратора. Доступ к терминалу открыт.", "success");
-                  playNotificationSound();
-              } else if (wasAdmin && !isNowAdmin) {
-                  showToast("Права Администратора отозваны.", "error");
-              }
-
-              // Update self state
-              setUserProfile(prev => ({
-                  ...prev,
-                  name: updatedProfile.full_name,
-                  username: updatedProfile.username,
-                  bio: updatedProfile.bio,
-                  avatar: updatedProfile.avatar_url,
-                  isAdmin: updatedProfile.is_admin,
-                  isVerified: updatedProfile.is_verified
-              }));
+              setUserProfile(prev => ({ ...prev, name: updatedProfile.full_name, username: updatedProfile.username, bio: updatedProfile.bio, avatar: updatedProfile.avatar_url, isAdmin: updatedProfile.is_admin, isVerified: updatedProfile.is_verified }));
           } else {
-             // Update chats list details if this user is in our list
              setChats(prev => prev.map(c => {
                  if (c.user.id === updatedProfile.id) {
                      return { ...c, user: { ...c.user, name: updatedProfile.full_name, username: updatedProfile.username, avatar: updatedProfile.avatar_url, isVerified: updatedProfile.is_verified, bio: updatedProfile.bio, email: updatedProfile.email } };
@@ -789,18 +683,21 @@ const App: React.FC = () => {
     const channel = supabase.channel('updates');
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, handleRealtimePayload);
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'group_members' }, (payload: any) => {
-        if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id) {
+        // Reload if I am added or removed from a group, or someone leaves my group
+        if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id || (payload.old && chatsRef.current.some(c => c.id === payload.old.group_id))) {
             fetchChats();
         }
     });
-    // Listen to profile updates for verification status/admin changes
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, handleRealtimePayload);
+    // Listen for Chat Setting changes (Pin/Mute) from other devices
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'chat_settings' }, (payload: any) => {
+        if (payload.new?.user_id === userProfile.id || payload.old?.user_id === userProfile.id) fetchChats();
+    });
 
     channel.subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [appState, userProfile.id, handleRealtimePayload, isDatabaseError, fetchChats]);
 
-  // --- ACTIONS ---
   const sendMessage = async (chatId: string, text: string, type: MessageType = 'text', mediaUrl?: string, duration?: string, fileName?: string, fileSize?: string, replyToId?: string) => {
     const isGroup = chats.find(c => c.id === chatId)?.user.isGroup;
     const payload: any = { 
@@ -825,6 +722,68 @@ const App: React.FC = () => {
       await supabase.channel(`signaling:${chatId}`).send({ type: 'broadcast', event: 'call-request', payload: { callerId: userProfile.id, type } });
   };
 
+  // --- CHAT ACTIONS (Pin / Mute / Leave) ---
+  const handleChatAction = async (chatId: string, action: 'pin' | 'mute' | 'delete') => {
+      if (action === 'delete') {
+          // Local Hide (For real delete, logic depends on requirements)
+          setChats(prev => prev.filter(c => c.id !== chatId));
+          if (activeChatId === chatId) setActiveChatId(null);
+          return;
+      }
+
+      const chat = chats.find(c => c.id === chatId);
+      if (!chat) return;
+
+      const isPinned = action === 'pin' ? !chat.isPinned : chat.isPinned;
+      const isMuted = action === 'mute' ? !chat.isMuted : chat.isMuted;
+
+      // Optimistic Update
+      setChats(prev => prev.map(c => {
+          if (c.id === chatId) return { ...c, isPinned, isMuted };
+          return c;
+      }).sort((a,b) => {
+          if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1;
+          return (b.lastMessage?.timestamp?.getTime() || 0) - (a.lastMessage?.timestamp?.getTime() || 0);
+      }));
+
+      // DB Upsert
+      const { error } = await supabase.from('chat_settings').upsert({
+          user_id: userProfile.id,
+          partner_id: chatId,
+          is_pinned: isPinned,
+          is_muted: isMuted
+      });
+
+      if (error) {
+          console.error("Chat Action Error", error);
+          showToast("Ошибка сохранения настроек чата", "error");
+          fetchChats(); // Revert on error
+      } else {
+          showToast(action === 'pin' ? (isPinned ? 'Чат закреплен' : 'Чат откреплен') : (isMuted ? 'Уведомления выключены' : 'Уведомления включены'), "success");
+      }
+  };
+
+  const handleLeaveGroup = async (groupId: string) => {
+      if (!confirm("Вы действительно хотите покинуть эту группу?")) return;
+
+      // 1. Send system message
+      await sendMessage(groupId, `${userProfile.name} покинул(а) группу`, 'system');
+      
+      // 2. Remove member
+      const { error } = await supabase.from('group_members')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('user_id', userProfile.id);
+
+      if (error) {
+          showToast("Не удалось выйти из группы", "error");
+      } else {
+          setChats(prev => prev.filter(c => c.id !== groupId));
+          setActiveChatId(null);
+          showToast("Вы покинули группу", "success");
+      }
+  };
+
   const handleEditMessage = async (id: string, newText: string) => await supabase.from('messages').update({ content: newText, is_edited: true }).eq('id', id);
   const handleDeleteMessage = async (id: string) => await supabase.from('messages').delete().eq('id', id);
   const handlePinMessage = async (id: string, currentStatus: boolean) => await supabase.from('messages').update({ is_pinned: !currentStatus }).eq('id', id);
@@ -839,10 +798,7 @@ const App: React.FC = () => {
       }));
 
       if (isGroup) {
-          await supabase.from('group_members')
-            .update({ last_read_at: new Date().toISOString() })
-            .eq('group_id', chatId)
-            .eq('user_id', userProfile.id);
+          await supabase.from('group_members').update({ last_read_at: new Date().toISOString() }).eq('group_id', chatId).eq('user_id', userProfile.id);
       } else {
           await supabase.from('messages').update({ is_read: true }).eq('receiver_id', userProfile.id).eq('sender_id', chatId).eq('is_read', false);
       }
@@ -863,19 +819,16 @@ const App: React.FC = () => {
           }).eq('id', updatedProfile.id);
 
           if (error) {
-              if (error.code === '23505') { // Postgres Unique Violation
+              if (error.code === '23505') { 
                    showToast("Этот юзернейм уже занят", "error");
               } else {
                    showToast("Ошибка сохранения профиля", "error");
-                   console.error(error);
               }
           } else {
               showToast("Профиль сохранен", "success");
               setUserProfile(updatedProfile);
           }
-      } catch (e) {
-          showToast("Ошибка соединения", "error");
-      }
+      } catch (e) { showToast("Ошибка соединения", "error"); }
   };
 
   const retryConnection = () => {
@@ -888,15 +841,10 @@ const App: React.FC = () => {
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black overflow-hidden bg-black">
       <div className="absolute inset-0 z-0 pointer-events-none transition-all duration-1000 ease-in-out" style={{ background: THEMES_CONFIG[currentTheme].wallpaper, opacity: 1 }} />
-      
-      {/* Disable pulsing blob on mobile (isMobile check) to save huge amount of GPU/CPU */}
       {settings.pulsing && !settings.liteMode && !isMobile && (
           <MDiv key={currentTheme} animate={{ scale: [1, 1.2, 1], opacity: [0.15, 0.3, 0.15] }} transition={{ repeat: Infinity, duration: 8, ease: "easeInOut" }} className="absolute top-1/4 left-1/4 w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none z-0" style={{ backgroundColor: THEMES_CONFIG[currentTheme]['--accent'] }} />
       )}
-      
-      {/* Static gradient for lite mode or mobile instead */}
       {(settings.liteMode || isMobile) && <div className="absolute inset-0 z-0 opacity-20" style={{ background: `radial-gradient(circle at center, ${THEMES_CONFIG[currentTheme]['--accent']}, transparent 70%)` }} />}
-
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
 
@@ -904,7 +852,6 @@ const App: React.FC = () => {
         {appState === 'loading' && <SplashScreen onComplete={handleSplashComplete} />}
         {appState === 'auth' && <AuthScreen onComplete={(p) => { setUserProfile(p); setAppState('app'); }} />}
       </AnimatePresence>
-
       <AnimatePresence>
         {callData && <CallModal callState={callData.state} callType={callData.type} partnerName={callData.partnerName} partnerAvatar={callData.partnerAvatar} partnerId={callData.partnerId} myId={userProfile.id} isCaller={callData.isCaller} onAnswer={() => setCallData(prev => prev ? { ...prev, state: 'connected' } : null)} onEnd={() => setCallData(null)} />}
       </AnimatePresence>
@@ -927,12 +874,12 @@ const App: React.FC = () => {
                       </div>
                   </div>
               ) : (
-                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={() => {}} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} />
+                  <ChatList chats={chats} activeChatId={activeChatId} onSelectChat={(id, u) => { if (u && !chats.some(c=>c.id===id)) setTempChatUser({id, ...u}); setActiveChatId(id); }} userProfile={userProfile} onUpdateProfile={(p) => setUserProfile(p)} onSetTheme={(theme) => setCurrentTheme(theme as keyof typeof THEMES_CONFIG)} currentThemeId={currentTheme} settings={settings} onUpdateSettings={(s) => {setSettings(s); localStorage.setItem('vellor_settings', JSON.stringify(s));}} onUpdateStatus={handleUpdateStatus} typingUsers={typingUsers} onChatAction={handleChatAction} showToast={showToast} onlineUsers={onlineUsers} onSaveProfile={handleSaveProfile} />
               )}
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
-                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} />
+                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={() => {}} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={handleLeaveGroup} />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}

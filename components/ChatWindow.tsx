@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Smartphone, Pin, Edit2, Crown, LogOut, Plus, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User } from 'lucide-react';
-import { Chat, Message, MessageType, CallType, CallState, UserStatus } from '../types';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Play, Pause, Trash2, StopCircle, Download, X, Pin, Edit2, Crown, LogOut, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User, ArrowDown, Copy } from 'lucide-react';
+import { Chat, Message, MessageType, CallType, UserStatus } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 
@@ -28,13 +28,14 @@ interface ChatWindowProps {
   onPinMessage: (id: string, currentStatus: boolean) => void;
   onlineUsers: Map<string, UserStatus>;
   showToast: (msg: string, type: ToastType) => void;
+  onLeaveGroup?: (groupId: string) => void;
 }
 
-const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "🎉", "👻", "👀", "🙌", "💀", "😊", "🤔", "🤣", "😍", "😒", "😭", "😩", "😤", "👋", "🙏", "🤝", "👌", "✨", "💯", "🚀", "🍕", "🍺", "⚽️"];
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
 
-// --- Animated Message Status ---
-const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, isOwn }) => {
+// --- OPTIMIZED SUB-COMPONENTS ---
+
+const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = React.memo(({ isRead, isOwn }) => {
   if (!isOwn) return null;
   return (
     <div className="flex items-center justify-center w-3.5 h-3.5 relative ml-0.5">
@@ -46,10 +47,9 @@ const MessageStatus: React.FC<{ isRead: boolean; isOwn: boolean }> = ({ isRead, 
        </MSvg>
     </div>
   );
-};
+});
 
-// --- Audio Player ---
-const AudioPlayer: React.FC<{ url: string, duration?: string }> = ({ url, duration }) => {
+const AudioPlayer: React.FC<{ url: string, duration?: string }> = React.memo(({ url, duration }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -64,7 +64,8 @@ const AudioPlayer: React.FC<{ url: string, duration?: string }> = ({ url, durati
     return () => { audio.removeEventListener('timeupdate', updateProgress); audio.removeEventListener('ended', handleEnded); };
   }, []);
 
-  const togglePlay = () => {
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (isPlaying) audioRef.current?.pause(); else audioRef.current?.play();
     setIsPlaying(!isPlaying);
   };
@@ -84,9 +85,8 @@ const AudioPlayer: React.FC<{ url: string, duration?: string }> = ({ url, durati
       <audio ref={audioRef} src={url} className="hidden" />
     </div>
   );
-};
+});
 
-// --- Swipeable Message Component (Telegram Style) ---
 const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactNode, onReply: () => void, isMe: boolean }) => {
     const x = useMotionValue(0);
     const opacity = useTransform(x, [-50, 0], [1, 0]);
@@ -94,34 +94,147 @@ const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactN
 
     return (
         <div className="relative w-full">
-            {/* Reply Icon Indicator behind the message */}
-            <MDiv 
-                style={{ opacity, scale }}
-                className="absolute right-[-40px] top-1/2 -translate-y-1/2 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white z-0"
-            >
+            <MDiv style={{ opacity, scale }} className="absolute right-[-40px] top-1/2 -translate-y-1/2 w-8 h-8 bg-white/10 rounded-full flex items-center justify-center text-white z-0">
                 <Reply size={16} />
             </MDiv>
-
-            <MDiv
-                drag="x"
-                dragConstraints={{ left: 0, right: 0 }}
-                dragElastic={{ left: 0.3, right: 0.05 }} // Allow pulling left
-                onDragEnd={(e: any, info: any) => {
-                    if (info.offset.x < -60) {
-                        onReply();
-                    }
-                }}
-                className={`relative z-10 w-full flex ${isMe ? 'justify-end' : 'justify-start'}`}
-            >
+            <MDiv drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={{ left: 0.3, right: 0.05 }} onDragEnd={(e: any, info: any) => { if (info.offset.x < -60) onReply(); }} className={`relative z-10 w-full flex ${isMe ? 'justify-end' : 'justify-start'}`}>
                 {children}
             </MDiv>
         </div>
     );
 };
 
+// --- MEMOIZED MESSAGE ITEM (CRITICAL FOR PERFORMANCE) ---
+interface MessageItemProps {
+    msg: Message;
+    isMe: boolean;
+    chatUser: any;
+    groupMembers: any[];
+    myId: string;
+    onContextMenu: (e: React.MouseEvent, msg: Message) => void;
+    onReply: (msg: Message) => void;
+    scrollToMessage: (id: string) => void;
+    setZoomedImage: (url: string) => void;
+    chatMessages: Message[]; // Needed to find reply parent
+    handleToggleReaction: (msgId: string, emoji: string) => void;
+}
+
+const MessageItem = React.memo(({ msg, isMe, chatUser, groupMembers, myId, onContextMenu, onReply, scrollToMessage, setZoomedImage, chatMessages, handleToggleReaction }: MessageItemProps) => {
+    
+    // Helper to get sender info (memoized inside component logic)
+    const getSenderInfo = (senderId: string) => {
+        if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
+        if (chatUser.isGroup && groupMembers.length > 0) {
+            const member = groupMembers.find(m => m.user.id === senderId)?.user;
+            if (member) return member;
+        }
+        if (!chatUser.isGroup && senderId === chatUser.id) return chatUser;
+        return { name: 'Unknown', avatar: '', id: senderId };
+    };
+
+    const senderInfo = getSenderInfo(msg.senderId);
+    const replyParent = msg.replyToId ? chatMessages.find(m => m.id === msg.replyToId) : null;
+    const replySender = replyParent ? getSenderInfo(replyParent.senderId) : null;
+
+    const reactionsGrouped = (msg.reactions || []).reduce((acc, r) => {
+        if (!acc[r.emoji]) acc[r.emoji] = { count: 0, hasReacted: false };
+        acc[r.emoji].count += 1;
+        if (r.senderId === myId) acc[r.emoji].hasReacted = true;
+        return acc;
+    }, {} as Record<string, { count: number, hasReacted: boolean }>);
+
+    if (msg.type === 'system') {
+        return (
+            <div className="flex justify-center my-4">
+                <span className="text-[10px] bg-white/5 border border-white/5 px-3 py-1 rounded-full text-white/50 font-medium">
+                    {msg.text}
+                </span>
+            </div>
+        );
+    }
+
+    return (
+        <div id={`msg-${msg.id}`} className="w-full">
+            <SwipeableMessage isMe={isMe} onReply={() => onReply(msg)}>
+                <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
+                    {!isMe && chatUser.isGroup && (
+                        <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10">
+                            {senderInfo && senderInfo.avatar ? <img src={senderInfo.avatar} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full bg-gray-700" />}
+                        </div>
+                    )}
+                    <div 
+                        onContextMenu={(e) => onContextMenu(e, msg)}
+                        className={`max-w-[85%] md:max-w-[70%] p-2 rounded-2xl relative shadow-sm border border-white/5 cursor-pointer group ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-1 ring-vellor-red/50' : ''}`}
+                    >
+                        {replyParent && (
+                            <div onClick={(e) => { e.stopPropagation(); scrollToMessage(replyParent.id); }} className="mb-1.5 rounded-lg bg-black/20 p-1.5 flex gap-2 items-center border-l-2 border-vellor-red/70 overflow-hidden cursor-pointer hover:bg-black/30 transition-colors">
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[10px] font-bold text-vellor-red truncate">{replySender?.name || 'Unknown'}</p>
+                                    <p className="text-[10px] text-white/60 truncate">{replyParent.type === 'image' ? 'Фото' : replyParent.type === 'audio' ? 'Голосовое' : replyParent.text}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {!isMe && chatUser.isGroup && (
+                            <div className="flex items-center gap-1 mb-1 ml-1"><p className="text-[10px] font-bold text-vellor-red">{senderInfo?.name}</p></div>
+                        )}
+
+                        {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}
+                        
+                        {msg.type === 'audio' && <AudioPlayer url={msg.mediaUrl || ''} duration={msg.duration} />}
+                        {msg.type === 'image' && (
+                            <div className="relative group/img">
+                                <MImg src={msg.mediaUrl} className="max-w-full max-h-[300px] w-auto h-auto rounded-lg border border-white/10 object-cover" />
+                                <button onClick={(e) => { e.stopPropagation(); setZoomedImage(msg.mediaUrl || ''); }} className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity"><ZoomIn size={24} className="text-white"/></button>
+                            </div>
+                        )}
+                        {msg.type === 'file' && (
+                            <div className="flex items-center gap-3 p-2 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
+                                <div className="p-2 bg-vellor-red/20 text-vellor-red rounded-lg"><FileText size={24}/></div>
+                                <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate max-w-[150px]">{msg.fileName}</p><p className="text-[9px] opacity-50 uppercase font-black">{msg.fileSize || 'FILE'}</p></div>
+                                <a href={msg.mediaUrl} download onClick={(e) => e.stopPropagation()} className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><Download size={16}/></a>
+                            </div>
+                        )}
+                        {msg.type === 'text' && <p className="whitespace-pre-wrap leading-snug px-2 py-1 text-[15px]">{msg.text}</p>}
+                        
+                        <div className="flex items-center justify-end gap-1 mt-0.5 px-1 opacity-40 select-none">
+                            {msg.isEdited && <span className="text-[9px] mr-1">изм.</span>}
+                            <span className="text-[10px]">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
+                            {isMe && <MessageStatus isRead={msg.isRead} isOwn={true} />}
+                        </div>
+
+                        <div className="absolute -bottom-3 left-0 flex gap-1 z-10 px-1">
+                            <AnimatePresence>
+                                {Object.entries(reactionsGrouped).map(([emoji, data]: any) => (
+                                    <MButton key={emoji} initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={(e: any) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }} className={`px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm backdrop-blur-md border border-white/10 text-[10px] ${data.hasReacted ? 'bg-vellor-red/20 border-vellor-red/50 text-white' : 'bg-black/60 text-white/80'}`}>
+                                        <span>{emoji}</span>{data.count > 1 && <span className="font-bold">{data.count}</span>}
+                                    </MButton>
+                                ))}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+            </SwipeableMessage>
+        </div>
+    );
+}, (prev, next) => {
+    // Custom comparison for React.memo to optimize re-renders
+    return (
+        prev.msg.id === next.msg.id &&
+        prev.msg.isRead === next.msg.isRead &&
+        prev.msg.reactions?.length === next.msg.reactions?.length &&
+        prev.msg.isPinned === next.msg.isPinned &&
+        prev.msg.isEdited === next.msg.isEdited &&
+        prev.msg.text === next.msg.text &&
+        // Also check if group members loaded to update avatar
+        prev.groupMembers.length === next.groupMembers.length
+    );
+});
+
+
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
-    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast
+    onEditMessage, onDeleteMessage, onPinMessage, onlineUsers, showToast, onLeaveGroup
 }) => {
   const [inputText, setInputText] = useState('');
   const [showAttachments, setShowAttachments] = useState(false);
@@ -134,42 +247,49 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
-
   const [groupMembers, setGroupMembers] = useState<any[]>([]);
-  const [groupDetails, setGroupDetails] = useState<any>(null);
-  const [newMemberSearch, setNewMemberSearch] = useState("");
-  const [showAddMember, setShowAddMember] = useState(false);
   const [pendingFile, setPendingFile] = useState<{file: File, url: string, type: MessageType} | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Context Menu State
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, message: Message } | null>(null);
   const [uploadingType, setUploadingType] = useState<MessageType | null>(null);
 
-  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // SCROLLING LOGIC
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const pinnedMessage = chat.messages.find(m => m.isPinned);
 
-  // Scroll logic
-  const scrollToBottom = (smooth = false) => {
-    if (messagesContainerRef.current) {
-        const { scrollHeight, clientHeight } = messagesContainerRef.current;
-        messagesContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior: smooth ? 'smooth' : 'auto' });
-    }
-  };
-
-  const scrollToMessage = (messageId: string) => {
-      const el = document.getElementById(`msg-${messageId}`);
-      if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.style.transition = 'background 0.3s';
-          const originalBg = el.style.backgroundColor;
-          el.style.backgroundColor = 'rgba(255, 0, 51, 0.2)';
-          setTimeout(() => { el.style.backgroundColor = originalBg; }, 1000);
+  const scrollToBottom = (behavior: ScrollBehavior = 'auto') => {
+      if (messagesContainerRef.current) {
+          const { scrollHeight, clientHeight } = messagesContainerRef.current;
+          messagesContainerRef.current.scrollTo({ top: scrollHeight - clientHeight, behavior });
+          setIsAtBottom(true);
+          setShowScrollButton(false);
       }
   };
 
-  useEffect(() => { markAsRead(chat.id); setTimeout(() => scrollToBottom(true), 50); }, [chat.messages.length, chat.id]);
+  const handleScroll = () => {
+      if (messagesContainerRef.current) {
+          const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+          const isBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 50;
+          setIsAtBottom(isBottom);
+          setShowScrollButton(!isBottom);
+      }
+  };
+
+  useEffect(() => {
+      markAsRead(chat.id);
+      // SMART SCROLL: Only scroll if we were already at bottom or it's the first load
+      if (isAtBottom) {
+          scrollToBottom(chat.messages.length > 20 ? 'smooth' : 'auto');
+      }
+  }, [chat.messages.length, chat.id]);
 
   useEffect(() => {
     if (chat.user.isGroup) {
@@ -185,8 +305,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                     }));
                 }
             }
-            const { data: grp } = await supabase.from('groups').select('*').eq('id', chat.id).single();
-            if(grp) setGroupDetails(grp);
         };
         fetchMembers();
     }
@@ -198,16 +316,28 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, message: Message) => {
+  // Optimized Context Menu Handler
+  const handleContextMenu = useCallback((e: React.MouseEvent, message: Message) => {
       e.preventDefault();
       let x = e.clientX;
       let y = e.clientY;
+      // Boundary checks
       if (x > window.innerWidth - 200) x = window.innerWidth - 210;
       if (y > window.innerHeight - 300) y = window.innerHeight - 310;
       setContextMenu({ x, y, message });
+  }, []);
+
+  const handleCopyMessage = async (text: string) => {
+      try {
+          await navigator.clipboard.writeText(text);
+          showToast("Скопировано", "success");
+      } catch (err) {
+          showToast("Ошибка копирования", "error");
+      }
+      setContextMenu(null);
   };
 
-  const handleToggleReaction = async (messageId: string, emoji: string) => {
+  const handleToggleReaction = useCallback(async (messageId: string, emoji: string) => {
       setContextMenu(null);
       const message = chat.messages.find(m => m.id === messageId);
       if (!message) return;
@@ -217,7 +347,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
           ? currentReactions.filter(r => !(r.emoji === emoji && r.senderId === myId)) 
           : [...currentReactions, { emoji, senderId: myId }];
       await supabase.from('messages').update({ reactions: newReactions }).eq('id', messageId);
-  };
+  }, [chat.messages, myId]);
 
   const handleSend = async () => { 
     if (!inputText.trim() && !pendingFile) return; 
@@ -246,6 +376,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             setInputText(''); 
         }
         setReplyingTo(null);
+        scrollToBottom('smooth');
     }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     onSendTypingSignal(false); 
@@ -285,6 +416,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         }
         stream.getTracks().forEach(track => track.stop());
         setReplyingTo(null);
+        scrollToBottom('smooth');
       };
       recorder.start();
       setMediaRecorder(recorder);
@@ -303,30 +435,19 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setMediaRecorder(null); 
   };
 
-  // Improved Sender Info Lookup
-  const getSenderInfo = (senderId: string) => {
-      if (senderId === 'me' || senderId === myId) return { name: 'Вы', avatar: '', id: myId };
-      
-      // If group, look in fetched members
-      if (chat.user.isGroup && groupMembers.length > 0) {
-          const member = groupMembers.find(m => m.user.id === senderId)?.user;
-          if (member) return member;
+  const scrollToMessage = useCallback((messageId: string) => {
+      const el = document.getElementById(`msg-${messageId}`);
+      if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.style.transition = 'background 0.3s';
+          const originalBg = el.style.backgroundColor;
+          el.style.backgroundColor = 'rgba(255, 0, 51, 0.2)';
+          setTimeout(() => { el.style.backgroundColor = originalBg; }, 1000);
       }
-      
-      // If DM, it's likely the chat partner
-      if (!chat.user.isGroup && senderId === chat.user.id) {
-          return chat.user;
-      }
-
-      // Fallback
-      return { name: 'Unknown', avatar: '', id: senderId };
-  };
+  }, []);
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
-  
-  // FIX: Sync status logic with ChatList
   const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !uploadingType) return;
@@ -335,15 +456,12 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
     setUploadingType(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
-
-  // Admin Check for Header
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
 
   return (
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
         
-        {/* Header - Fixed Compact Height */}
         <div className="h-14 flex items-center justify-between px-3 md:px-6 bg-black/40 backdrop-blur-3xl z-30 border-b border-[var(--border)] shrink-0">
             <div className="flex items-center gap-2 md:gap-4">
                 {isMobile && <button onClick={onBack} className="text-white p-1 hover:bg-white/5 rounded-full"><ArrowLeft size={22}/></button>}
@@ -358,22 +476,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                 <div className="cursor-pointer" onClick={() => setShowUserInfo(true)}>
                     <h3 className="font-bold text-white text-sm tracking-tight leading-none mb-0.5 flex items-center gap-1.5">
                         {chat.user.name}
-                        {isSuperAdmin && (
-                            <div 
-                                title="Администратор"
-                                onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
-                            >
-                                <Crown size={12} className="text-yellow-400 fill-yellow-400" />
-                            </div>
-                        )}
-                        {chat.user.isVerified && (
-                            <div
-                                title="Верифицированный пользователь"
-                                onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
-                            >
-                                <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />
-                            </div>
-                        )}
+                        {isSuperAdmin && <Crown size={12} className="text-yellow-400 fill-yellow-400" />}
+                        {chat.user.isVerified && <BadgeCheck size={12} className="text-blue-400 fill-blue-400/20" />}
                     </h3>
                     {isPartnerTyping ? (
                         <p className="text-[10px] text-vellor-red font-bold animate-pulse">печатает...</p>
@@ -389,7 +493,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
         </div>
 
-        {/* Pinned Message */}
         <AnimatePresence>
             {pinnedMessage && (
                 <MDiv onClick={() => scrollToMessage(pinnedMessage.id)} initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20">
@@ -400,105 +503,48 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* Messages Container */}
-        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth">
-            {chat.messages.map((msg, index) => {
-                const isMe = msg.senderId === 'me' || msg.senderId === myId;
-                const senderInfo = getSenderInfo(msg.senderId);
-                
-                // Reply Lookup
-                const replyParent = msg.replyToId ? chat.messages.find(m => m.id === msg.replyToId) : null;
-                const replySender = replyParent ? getSenderInfo(replyParent.senderId) : null;
-
-                const reactionsGrouped = (msg.reactions || []).reduce((acc, r) => {
-                    if (!acc[r.emoji]) acc[r.emoji] = { count: 0, hasReacted: false };
-                    acc[r.emoji].count += 1;
-                    if (r.senderId === myId) acc[r.emoji].hasReacted = true;
-                    return acc;
-                }, {} as Record<string, { count: number, hasReacted: boolean }>);
-
-                return (
-                    <MDiv key={msg.id} id={`msg-${msg.id}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full">
-                        <SwipeableMessage isMe={isMe} onReply={() => setReplyingTo(msg)}>
-                            <div className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'} mb-1`}>
-                                {!isMe && chat.user.isGroup && (
-                                    <div className="w-6 h-6 rounded-full overflow-hidden bg-gray-800 shrink-0 mb-1 mr-2 self-end border border-white/10">
-                                        {senderInfo && senderInfo.avatar ? <img src={senderInfo.avatar} className="w-full h-full object-cover" /> : <div className="w-full h-full bg-gray-700" />}
-                                    </div>
-                                )}
-
-                                <div 
-                                    onContextMenu={(e: any) => handleContextMenu(e, msg)}
-                                    className={`max-w-[85%] md:max-w-[70%] p-2 rounded-2xl relative shadow-sm border border-white/5 cursor-pointer group ${isMe ? 'bg-[var(--msg-me)] text-white rounded-br-none' : 'bg-white/5 backdrop-blur-md text-gray-200 rounded-bl-none'} ${msg.isPinned ? 'ring-1 ring-vellor-red/50' : ''}`}
-                                >
-                                    {/* --- REPLY VISUALIZATION --- */}
-                                    {replyParent && (
-                                        <div onClick={(e) => { e.stopPropagation(); scrollToMessage(replyParent.id); }} className="mb-1.5 rounded-lg bg-black/20 p-1.5 flex gap-2 items-center border-l-2 border-vellor-red/70 overflow-hidden cursor-pointer hover:bg-black/30 transition-colors">
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-[10px] font-bold text-vellor-red truncate">{replySender?.name || 'Unknown'}</p>
-                                                <p className="text-[10px] text-white/60 truncate">
-                                                    {replyParent.type === 'image' ? 'Фотография' : replyParent.type === 'audio' ? 'Голосовое' : replyParent.text}
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {!isMe && chat.user.isGroup && (
-                                        <div className="flex items-center gap-1 mb-1 ml-1">
-                                            <p className="text-[10px] font-bold text-vellor-red">{senderInfo?.name}</p>
-                                            {/* Admin Check for Group Members if we had username, for now relying on senderInfo structure which might need username populated */}
-                                        </div>
-                                    )}
-
-                                    {msg.isPinned && <div className="absolute -top-3 right-2 bg-vellor-red text-white text-[9px] px-1.5 rounded-md flex items-center gap-1 shadow-lg"><Pin size={8} fill="currentColor"/></div>}
-                                    
-                                    {msg.type === 'audio' && <AudioPlayer url={msg.mediaUrl || ''} duration={msg.duration} />}
-                                    {msg.type === 'image' && (
-                                        <div className="relative group/img">
-                                            <MImg src={msg.mediaUrl} className="max-w-full max-h-[300px] w-auto h-auto rounded-lg border border-white/10 object-cover" />
-                                            <button onClick={(e) => { e.stopPropagation(); setZoomedImage(msg.mediaUrl || ''); }} className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover/img:opacity-100 transition-opacity"><ZoomIn size={24} className="text-white"/></button>
-                                        </div>
-                                    )}
-                                    {msg.type === 'file' && (
-                                        <div className="flex items-center gap-3 p-2 bg-black/20 rounded-xl border border-white/5 hover:bg-white/5 transition-colors">
-                                            <div className="p-2 bg-vellor-red/20 text-vellor-red rounded-lg"><FileText size={24}/></div>
-                                            <div className="flex-1 min-w-0"><p className="text-xs font-bold truncate max-w-[150px]">{msg.fileName}</p><p className="text-[9px] opacity-50 uppercase font-black">{msg.fileSize || 'FILE'}</p></div>
-                                            <a href={msg.mediaUrl} download className="p-2 hover:bg-white/10 rounded-full text-white/50 hover:text-white"><Download size={16}/></a>
-                                        </div>
-                                    )}
-                                    {msg.type === 'text' && <p className="whitespace-pre-wrap leading-snug px-2 py-1 text-[15px]">{msg.text}</p>}
-                                    
-                                    <div className="flex items-center justify-end gap-1 mt-0.5 px-1 opacity-40 select-none">
-                                        {msg.isEdited && <span className="text-[9px] mr-1">изм.</span>}
-                                        <span className="text-[10px]">{new Date(msg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                                        {isMe && <MessageStatus isRead={msg.isRead} isOwn={true} />}
-                                    </div>
-
-                                    {/* Reactions */}
-                                    <div className="absolute -bottom-3 left-0 flex gap-1 z-10 px-1">
-                                        <AnimatePresence>
-                                            {Object.entries(reactionsGrouped).map(([emoji, data]: any) => (
-                                                <MButton key={emoji} initial={{ scale: 0 }} animate={{ scale: 1 }} onClick={(e: any) => { e.stopPropagation(); handleToggleReaction(msg.id, emoji); }} className={`px-1.5 py-0.5 rounded-full flex items-center gap-1 shadow-sm backdrop-blur-md border border-white/10 text-[10px] ${data.hasReacted ? 'bg-vellor-red/20 border-vellor-red/50 text-white' : 'bg-black/60 text-white/80'}`}>
-                                                    <span>{emoji}</span>{data.count > 1 && <span className="font-bold">{data.count}</span>}
-                                                </MButton>
-                                            ))}
-                                        </AnimatePresence>
-                                    </div>
-                                </div>
-                            </div>
-                        </SwipeableMessage>
-                    </MDiv>
-                );
-            })}
+        <div 
+            ref={messagesContainerRef} 
+            onScroll={handleScroll}
+            className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth"
+        >
+            {chat.messages.map((msg) => (
+                <MessageItem 
+                    key={msg.id}
+                    msg={msg}
+                    isMe={msg.senderId === 'me' || msg.senderId === myId}
+                    chatUser={chat.user}
+                    groupMembers={groupMembers}
+                    myId={myId}
+                    onContextMenu={handleContextMenu}
+                    onReply={(m) => setReplyingTo(m)}
+                    scrollToMessage={scrollToMessage}
+                    setZoomedImage={setZoomedImage}
+                    chatMessages={chat.messages}
+                    handleToggleReaction={handleToggleReaction}
+                />
+            ))}
         </div>
+        
+        {showScrollButton && (
+            <button onClick={() => scrollToBottom('smooth')} className="absolute bottom-20 right-4 z-50 p-2 bg-black/80 border border-white/10 rounded-full text-white shadow-xl hover:bg-vellor-red transition-colors animate-bounce">
+                <ArrowDown size={20} />
+            </button>
+        )}
 
-        {/* Context Menu */}
         <AnimatePresence>
             {contextMenu && (
                 <MDiv initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-[100] w-60 bg-black/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-1.5 shadow-2xl origin-top-left overflow-hidden flex flex-col gap-1" onClick={(e: any) => e.stopPropagation()}>
                     <div className="p-2 bg-white/5 rounded-xl mb-1 flex justify-between gap-1">
                         {QUICK_REACTIONS.map(emoji => <MButton key={emoji} whileHover={{ scale: 1.2 }} onClick={() => handleToggleReaction(contextMenu.message.id, emoji)} className="text-xl p-1">{emoji}</MButton>)}
                     </div>
+                    
+                    {contextMenu.message.type === 'text' && (
+                         <button onClick={() => handleCopyMessage(contextMenu.message.text)} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
+                            <Copy size={14} className="text-white/60" /> Копировать
+                        </button>
+                    )}
+
                     <button onClick={() => { setReplyingTo(contextMenu.message); setContextMenu(null); }} className="flex items-center gap-3 w-full p-2.5 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors">
                         <Reply size={14} className="text-white/60" /> Ответить
                     </button>
@@ -514,7 +560,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* Lightbox */}
         <AnimatePresence>
             {zoomedImage && (
                 <MDiv initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setZoomedImage(null)}>
@@ -524,7 +569,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             )}
         </AnimatePresence>
 
-        {/* User Info Panel - REPAIRED AND ENHANCED */}
         <AnimatePresence>
             {showUserInfo && (
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
@@ -532,79 +576,42 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
                         <button onClick={() => setShowUserInfo(false)} className="p-2 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all"><X size={18}/></button>
                     </div>
-                    {/* User Info Body */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center">
                         <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl group">
                             <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
-                                <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" />
+                                <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt="" />
                             </div>
-                            {isSuperAdmin && (
-                                <div 
-                                    title="Администратор"
-                                    onClick={(e) => { e.stopPropagation(); showToast("Администратор Vellor", "info"); }}
-                                    className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20 cursor-pointer hover:scale-110 transition-transform"
-                                >
-                                    <Crown size={20} className="text-yellow-400 fill-yellow-400" />
-                                </div>
-                            )}
+                            {isSuperAdmin && <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20"><Crown size={20} className="text-yellow-400 fill-yellow-400" /></div>}
                         </div>
-                        
                         <div className="text-center space-y-1">
                             <h1 className="text-2xl font-black text-white flex items-center justify-center gap-2">
                                 {chat.user.name}
-                                {chat.user.isVerified && (
-                                    <div
-                                        title="Верифицированный пользователь"
-                                        onClick={(e) => { e.stopPropagation(); showToast("Верифицированный пользователь", "info"); }}
-                                        className="cursor-pointer"
-                                    >
-                                        <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />
-                                    </div>
-                                )}
+                                {chat.user.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
                             </h1>
                             <p className="text-sm text-white/40 font-mono">@{chat.user.username}</p>
                         </div>
-
-                        {/* Info Cards */}
                         <div className="w-full space-y-3">
-                            {/* Bio Card */}
                             <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
-                                <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2">
-                                    <Info size={12}/> О себе
-                                </h4>
-                                <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">
-                                    {chat.user.bio || 'Информация не заполнена.'}
-                                </p>
+                                <h4 className="text-[10px] font-bold uppercase text-vellor-red tracking-wider mb-2 flex items-center gap-2"><Info size={12}/> О себе</h4>
+                                <p className="text-sm font-medium text-white/80 leading-relaxed whitespace-pre-wrap">{chat.user.bio || 'Информация не заполнена.'}</p>
                             </div>
-
-                            {/* Contact Details */}
                             <div className="p-4 bg-black/30 border border-white/5 rounded-2xl space-y-3">
-                                <div className="flex items-center gap-3 opacity-70">
-                                    <Mail size={16} />
-                                    <span className="text-xs">{chat.user.email || 'Скрыто'}</span>
-                                </div>
-                                <div className="flex items-center gap-3 opacity-70">
-                                    <Calendar size={16} />
-                                    <span className="text-xs">
-                                        {chat.user.created_at 
-                                            ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` 
-                                            : 'Дата регистрации скрыта'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-3 opacity-70">
-                                    <User size={16} />
-                                    <span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span>
-                                </div>
+                                <div className="flex items-center gap-3 opacity-70"><Mail size={16} /><span className="text-xs">{chat.user.email || 'Скрыто'}</span></div>
+                                <div className="flex items-center gap-3 opacity-70"><Calendar size={16} /><span className="text-xs">{chat.user.created_at ? `Участник с ${new Date(chat.user.created_at).toLocaleDateString()}` : 'Дата регистрации скрыта'}</span></div>
+                                <div className="flex items-center gap-3 opacity-70"><User size={16} /><span className="text-xs font-mono text-[10px] opacity-50">ID: {chat.user.id}</span></div>
                             </div>
+                            {chat.user.isGroup && onLeaveGroup && (
+                                <button onClick={() => onLeaveGroup(chat.id)} className="w-full py-4 mt-6 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 font-bold uppercase text-[10px] tracking-widest hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2">
+                                    <LogOut size={16} /> Покинуть группу
+                                </button>
+                            )}
                         </div>
                     </div>
                 </MDiv>
             )}
         </AnimatePresence>
 
-        {/* Input Area */}
         <div className="p-2 md:p-4 bg-black/50 backdrop-blur-3xl border-t border-[var(--border)] z-30 relative pb-safe-bottom">
-             {/* Reply / Edit Overlays */}
              {(editingMessageId || replyingTo) && (
                  <div className="absolute -top-12 left-0 w-full bg-[#0a0a0a]/90 backdrop-blur-md border-t border-white/10 p-2 px-4 flex items-center justify-between z-10 border-b border-white/5">
                      <div className="flex items-center gap-3 overflow-hidden">
@@ -621,7 +628,6 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                  </div>
              )}
 
-             {/* Pending File Preview */}
              {pendingFile && (
                  <MDiv initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="absolute -top-28 left-4 w-32 p-2 bg-black/80 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl z-20">
                      <div className="relative aspect-square rounded-xl overflow-hidden bg-white/5 mb-1 group">
