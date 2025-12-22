@@ -16,7 +16,8 @@ export interface User {
   isVerified?: boolean; 
   isAdmin?: boolean;
   created_at?: string;
-  nameColor?: string; // Added for custom name color
+  nameColor?: string;
+  banner?: string; // Custom Profile Banner (CSS gradient or Image URL)
 }
 
 export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
@@ -34,7 +35,8 @@ export interface UserProfile {
   isVerified?: boolean;
   isBanned?: boolean;
   created_at?: string;
-  nameColor?: string; // Added
+  nameColor?: string;
+  banner?: string; // Custom Profile Banner
   
   // Privacy Settings
   privacy_phone?: PrivacyValue;

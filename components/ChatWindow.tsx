@@ -140,7 +140,8 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                                 bio: p?.bio, 
                                 email: p?.email, 
                                 created_at: p?.created_at,
-                                nameColor: p?.nameColor // Ensure nameColor is propagated
+                                nameColor: p?.name_color, 
+                                banner: p?.banner_url
                             } 
                         };
                     }));
@@ -180,7 +181,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                   username: p.username,
                   avatar: p.avatar_url,
                   status: p.status || 'offline',
-                  isVerified: p.is_verified
+                  isVerified: p.is_verified,
+                  nameColor: p.name_color,
+                  banner: p.banner_url
               }));
               setMemberSearchResults(mappedUsers.filter(u => !groupMembers.some(gm => gm.user.id === u.id)));
           }
@@ -423,6 +426,10 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   const isSuperAdmin = chat.user.username?.toLowerCase() === 'arfstudoo';
   const isOwner = chat.ownerId === myId;
 
+  // BANNER LOGIC
+  const defaultBanner = `linear-gradient(135deg, #${chat.user.id.slice(0,6)} 0%, #000000 100%)`;
+  const infoBanner = chat.user.banner || defaultBanner;
+
   // IMPROVED TYPING TEXT LOGIC
   let typingText = "";
   if (chat.user.isGroup) {
@@ -573,20 +580,26 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         <AnimatePresence>
             {showUserInfo && (
                 <MDiv initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} className="absolute top-0 right-0 w-full md:w-[400px] h-full bg-[#0a0a0a] border-l border-white/10 z-[50] flex flex-col shadow-2xl">
-                    <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 bg-black/40 backdrop-blur-xl shrink-0">
-                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">ИНФОРМАЦИЯ</h2>
-                        <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); setIsEditingDesc(false); }} className="p-3 bg-white/5 rounded-full hover:bg-vellor-red/20 hover:text-vellor-red transition-all active:scale-90"><X size={18}/></button>
+                    
+                    {/* CUSTOM INFO HEADER WITH BANNER */}
+                    <div className="relative h-32 shrink-0">
+                        <div className="absolute inset-0 transition-all duration-500" style={{ background: infoBanner }} />
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#0a0a0a]" />
+                        <div className="absolute top-0 left-0 w-full h-16 flex items-center justify-between px-6 z-10">
+                            <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90 drop-shadow-md">ИНФОРМАЦИЯ</h2>
+                            <button onClick={() => { setShowUserInfo(false); setIsAddingMember(false); setIsEditingDesc(false); }} className="p-3 bg-black/40 backdrop-blur-md rounded-full hover:bg-white/20 hover:text-white transition-all active:scale-90 border border-white/10"><X size={18}/></button>
+                        </div>
                     </div>
-                    {/* ... (Sidebar content remains same) ... */}
-                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center">
-                        <div className="w-32 h-32 rounded-[2rem] p-1 border border-white/10 bg-black/50 relative mb-4 shadow-2xl group">
-                            <div className="w-full h-full rounded-[1.8rem] overflow-hidden relative">
+
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 flex flex-col items-center -mt-16 relative z-10">
+                        <div className="w-32 h-32 rounded-[2rem] p-1 border-4 border-[#0a0a0a] bg-black/50 relative mb-4 shadow-2xl group">
+                            <div className="w-full h-full rounded-[1.7rem] overflow-hidden relative">
                                 <img src={chat.user.avatar || 'https://via.placeholder.com/400'} className="w-full h-full object-cover" alt="" />
                             </div>
                             {isSuperAdmin && <div className="absolute -top-3 -right-3 bg-black/90 p-2 rounded-full border border-yellow-500/50 shadow-xl shadow-yellow-500/20"><Crown size={20} className="text-yellow-400 fill-yellow-400" /></div>}
                         </div>
                         <div className="text-center space-y-1">
-                            <h1 className="text-2xl font-black text-white flex items-center justify-center gap-2">
+                            <h1 className="text-2xl font-black text-white flex items-center justify-center gap-2" style={{ color: chat.user.nameColor || 'white' }}>
                                 {chat.user.name}
                                 {chat.user.isVerified && <BadgeCheck size={20} className="text-blue-400 fill-blue-400/20" />}
                             </h1>

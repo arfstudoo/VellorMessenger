@@ -104,6 +104,7 @@ const App: React.FC = () => {
   const [isDatabaseError, setIsDatabaseError] = useState(false);
   
   // Maintenance State (Persistent)
+  // FIX: Explicitly check for string "true" to avoid "false" string being truthy
   const [isMaintenanceMode, setIsMaintenanceMode] = useState(() => {
       return localStorage.getItem('vellor_maintenance') === 'true';
   });
@@ -155,14 +156,6 @@ const App: React.FC = () => {
       localStorage.setItem('vellor_calls', JSON.stringify(callHistory));
   }, [callHistory]);
 
-  // Load Custom Name Color
-  useEffect(() => {
-      const savedColor = localStorage.getItem('vellor_name_color');
-      if (savedColor && userProfile.id) {
-          setUserProfile(prev => ({...prev, nameColor: savedColor}));
-      }
-  }, [userProfile.id]);
-
   // Audio & Notification Helpers
   const initAudioContext = () => {
       if (!audioContextRef.current) {
@@ -199,7 +192,6 @@ const App: React.FC = () => {
       if (!settingsRef.current.notifications) return;
       const currentSettings = settingsRef.current;
       const soundDef = NOTIFICATION_SOUNDS.find(s => s.id === currentSettings.notificationSound) || NOTIFICATION_SOUNDS[0];
-      // Use fallback URL preferentially if local file isn't guaranteed in electron build
       await playSound(soundDef.url, soundDef.fallback);
   };
 
@@ -266,7 +258,18 @@ const App: React.FC = () => {
     channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload: any) => {
         if (payload.new.id === userProfile.id) {
              const u = payload.new;
-             setUserProfile(prev => ({ ...prev, name: u.full_name, username: u.username, bio: u.bio, avatar: u.avatar_url, isAdmin: u.is_admin, isVerified: u.is_verified, isBanned: u.is_banned }));
+             setUserProfile(prev => ({ 
+                 ...prev, 
+                 name: u.full_name, 
+                 username: u.username, 
+                 bio: u.bio, 
+                 avatar: u.avatar_url, 
+                 isAdmin: u.is_admin, 
+                 isVerified: u.is_verified, 
+                 isBanned: u.is_banned,
+                 nameColor: u.name_color || prev.nameColor, // Sync Name Color
+                 banner: u.banner_url || prev.banner // Sync Banner
+             }));
         }
         handleRealtimePayload(payload);
     });
@@ -307,7 +310,6 @@ const App: React.FC = () => {
           if (status === 'SUBSCRIBED') await trackPresence('online'); 
       });
 
-    // Handle Tab Switching / Minimizing
     const handleVisibilityChange = async () => {
         if (document.hidden) {
             await trackPresence('away');
@@ -316,7 +318,6 @@ const App: React.FC = () => {
         }
     };
 
-    // Handle Window Close
     const handleBeforeUnload = async () => { await channel.untrack(); };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -344,7 +345,8 @@ const App: React.FC = () => {
       try {
           // Update local state immediately for the admin
           setIsMaintenanceMode(active);
-          localStorage.setItem('vellor_maintenance', String(active));
+          // Store 'true' or 'false' string clearly
+          localStorage.setItem('vellor_maintenance', active ? 'true' : 'false');
           await systemChannelRef.current.send({ type: 'broadcast', event: 'maintenance_toggle', payload: { active } });
           return true;
       } catch (e) { return false; }
@@ -355,13 +357,13 @@ const App: React.FC = () => {
       const channel = supabase.channel('global_system');
       systemChannelRef.current = channel;
       channel.on('broadcast', { event: 'system_alert' }, ({ payload }) => {
-          // Enhanced Broadcast UI
           setBroadcastAlert(payload.message);
           playNotificationSound();
       });
       channel.on('broadcast', { event: 'maintenance_toggle' }, ({ payload }) => {
-          setIsMaintenanceMode(payload.active);
-          localStorage.setItem('vellor_maintenance', String(payload.active));
+          const isActive = payload.active === true;
+          setIsMaintenanceMode(isActive);
+          localStorage.setItem('vellor_maintenance', isActive ? 'true' : 'false');
       });
       channel.subscribe();
       return () => { supabase.removeChannel(channel); systemChannelRef.current = null; };
@@ -373,11 +375,9 @@ const App: React.FC = () => {
       const channel = supabase.channel('global_typing');
       channel.on('broadcast', { event: 'typing' }, ({ payload }) => {
           if (payload.userId === userProfile.id) return;
-          
           setTypingUsers(prev => {
               const currentList = prev[payload.chatId] || [];
               let newList;
-              
               if (payload.isTyping) {
                   if (!currentList.includes(payload.name)) {
                       newList = [...currentList, payload.name];
@@ -387,7 +387,6 @@ const App: React.FC = () => {
               } else {
                   newList = currentList.filter(name => name !== payload.name);
               }
-              
               return { ...prev, [payload.chatId]: newList };
           });
       }).subscribe();
@@ -434,7 +433,8 @@ const App: React.FC = () => {
            setUserProfile({
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
               phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
-              isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false, isBanned: profile.is_banned || false, created_at: profile.created_at
+              isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false, isBanned: profile.is_banned || false, created_at: profile.created_at,
+              nameColor: profile.name_color, banner: profile.banner_url // Load Custom Fields
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -450,12 +450,19 @@ const App: React.FC = () => {
   
   const handleSaveProfile = async (updatedProfile: UserProfile) => {
       try {
-          const { error } = await supabase.from('profiles').update({ full_name: updatedProfile.name, username: updatedProfile.username, bio: updatedProfile.bio, avatar_url: updatedProfile.avatar }).eq('id', updatedProfile.id);
+          const { error } = await supabase.from('profiles').update({ 
+              full_name: updatedProfile.name, 
+              username: updatedProfile.username, 
+              bio: updatedProfile.bio, 
+              avatar_url: updatedProfile.avatar,
+              name_color: updatedProfile.nameColor, // Save Name Color
+              banner_url: updatedProfile.banner // Save Banner
+          }).eq('id', updatedProfile.id);
+          
           if (error) { showToast(error.code === '23505' ? "Этот юзернейм уже занят" : "Ошибка сохранения профиля", "error"); } 
           else { 
               showToast("Профиль сохранен", "success"); 
               setUserProfile(updatedProfile);
-              if (updatedProfile.nameColor) localStorage.setItem('vellor_name_color', updatedProfile.nameColor);
           }
       } catch (e) { showToast("Ошибка соединения", "error"); }
   };

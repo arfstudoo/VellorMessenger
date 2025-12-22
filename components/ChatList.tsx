@@ -242,7 +242,7 @@ export const ChatList: React.FC<ChatListProps> = ({
 
         <div className="relative group">
             <div className="absolute left-3 top-2.5 text-white/30"><div className="w-4 h-4" /></div> 
-            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск..." className="w-full bg-white/5 border border-white/5 rounded-xl py-2 pl-9 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all text-white" />
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Поиск..." className="w-full bg-white/5 border border-white/5 rounded-2xl py-2 pl-9 pr-4 text-sm focus:border-vellor-red/30 outline-none transition-all text-white" />
         </div>
       </div>
 
@@ -344,8 +344,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                          <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
                              <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
                              <div>
-                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">The "Quality of Life" Update</h3>
-                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.1 - Для людей</p>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Обнова для души</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.1</p>
                              </div>
                              
                              <div className="space-y-3">
@@ -353,28 +353,26 @@ export const ChatList: React.FC<ChatListProps> = ({
                                      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Phone size={48} /></div>
                                      <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Phone size={14} className="text-green-400"/> История звонков</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Больше не нужно гадать "сколько мы говорили?".
-                                         <br/>
-                                         Добавлена полноценная история вызовов. Входящие, исходящие, пропущенные — всё фиксируется с точностью до секунды.
+                                         Короче, сделал историю звонков. Теперь видно кто звонил, кому звонили и сколько болтали.
                                      </p>
                                  </div>
 
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
                                      <div className="absolute top-0 right-0 p-4 opacity-20 group-hover:opacity-40 transition-opacity"><Zap size={48} /></div>
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Smart Interactions</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Полезные штуки</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         • <strong>QR Код:</strong> В профиле теперь есть твой личный QR. Отсканировал — попал в ЛС. Никаких поисков.<br/>
-                                         • <strong>Double Tap:</strong> Два раза кликни по сообщению, чтобы ответить. Быстро, как ниндзя.<br/>
-                                         • <strong>Цвет имени:</strong> Выбери свой вайб. Теперь цвет ника можно менять в профиле (градиенты включены!).
+                                         • <strong>QR Код:</strong> Заходи в профиль, там теперь твой QR. Даешь другу отсканить — и сразу в ЛС. Удобно.<br/>
+                                         • <strong>Цвет имени:</strong> Надоел белый? Заходи в настройки профиля и меняй цвет ника. Видно всем.<br/>
+                                         • <strong>Шапка профиля:</strong> Теперь можно менять фон за аватаркой. Добавил пару готовых градиентов, выглядит кайф.
                                      </p>
                                  </div>
 
                                  <div className="p-4 bg-gradient-to-br from-red-900/10 to-transparent border border-red-500/20 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Критические фиксы</h4>
+                                     <h4 className="text-xs font-bold text-red-400 mb-2 flex items-center gap-2"><Bug size={14}/> Починил баги</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         • <strong>Техработы:</strong> Экран больше не пропадает при F5. Если мы закрыты — мы закрыты.<br/>
-                                         • <strong>Группы:</strong> Галочки прочтения теперь показываются и в групповых чатах.<br/>
-                                         • <strong>Звуки:</strong> Починили баг, когда приложение игнорировало выбранный звук уведомления.
+                                         • <strong>Техработы:</strong> Теперь они реально выключаются и не висят просто так.<br/>
+                                         • <strong>Группы:</strong> Галочки прочтения теперь видно и в групповых чатах.<br/>
+                                         • <strong>Звуки:</strong> Поправил звук уведомлений, теперь играет тот, что ты выбрал.
                                      </p>
                                  </div>
                              </div>
@@ -385,7 +383,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div><h3 className="text-lg font-black text-white">Vellor Desktop X</h3><p className="text-[10px] text-white/40 font-mono">v2.3.0</p></div>
                              <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14}/> Desktop Controls</h4><p className="text-sm text-white/80 leading-relaxed">Кастомные кнопки окна для ПК.</p></div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14}/> Desktop Controls</h4><p className="text-sm text-white/80 leading-relaxed">Сделал кнопки для окна на компе, чтобы красиво было.</p></div>
                              </div>
                          </div>
                      </div>

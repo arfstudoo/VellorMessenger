@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock, QrCode, Palette } from 'lucide-react';
+import { Camera, Loader2, Copy, Check, X, User, AtSign, AlignLeft, Calendar, Shield, Smartphone, Eye, Bell, Lock, QrCode, Palette, Image as ImageIcon } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { supabase } from '../../supabaseClient';
 
@@ -24,6 +24,17 @@ const NAME_COLORS = [
     { id: 'gold', value: '#eab308', label: 'Gold' },
     { id: 'pink', value: '#ec4899', label: 'Neon' },
     { id: 'cyan', value: '#06b6d4', label: 'Cyber' },
+];
+
+const BANNER_PRESETS = [
+    { id: 'void', value: 'linear-gradient(135deg, #000000 0%, #2e022e 100%)', label: 'Void' },
+    { id: 'crimson', value: 'linear-gradient(135deg, #4a0404 0%, #000000 100%)', label: 'Crimson' },
+    { id: 'ocean', value: 'linear-gradient(135deg, #041f4a 0%, #000205 100%)', label: 'Ocean' },
+    { id: 'sunset', value: 'linear-gradient(135deg, #4a0426 0%, #0f0005 100%)', label: 'Sunset' },
+    { id: 'matrix', value: 'linear-gradient(135deg, #022c22 0%, #000000 100%)', label: 'Matrix' },
+    { id: 'gold', value: 'linear-gradient(135deg, #4a3804 0%, #050200 100%)', label: 'Gold' },
+    { id: 'cyber', value: 'linear-gradient(135deg, #2e044a 0%, #000000 100%)', label: 'Cyber' },
+    { id: 'clean', value: 'linear-gradient(135deg, #222 0%, #111 100%)', label: 'Clean' }
 ];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdateProfile, onSaveProfile, onClose, isReadOnly = false }) => {
@@ -49,14 +60,16 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const bannerGradient = `linear-gradient(135deg, #${userProfile.id.slice(0,6)} 0%, #000000 100%)`;
+  const defaultBanner = `linear-gradient(135deg, #${userProfile.id.slice(0,6)} 0%, #000000 100%)`;
+  const currentBanner = userProfile.banner || defaultBanner;
+  
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=vellor://u/${userProfile.id}&color=ffffff&bgcolor=000000`;
 
   return (
     <div className="flex flex-col h-full bg-[#050505] relative">
       {/* HEADER / BANNER */}
       <div className="relative h-40 shrink-0">
-          <div className="absolute inset-0 opacity-80" style={{ background: bannerGradient }} />
+          <div className="absolute inset-0 transition-all duration-500" style={{ background: currentBanner }} />
           <div className="absolute inset-0 bg-gradient-to-b from-transparent to-[#050505]" />
           
           <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-10">
@@ -166,6 +179,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                 </MDiv>
             ) : activeTab === 'appearance' ? (
                 <MDiv key="appearance" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
+                    {/* NAME COLOR */}
                     <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
                         <h4 className="text-xs font-bold uppercase text-white mb-4 flex items-center gap-2">
                             <Palette size={16} className="text-vellor-red" /> Цвет имени
@@ -183,7 +197,27 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ userProfile, onUpdat
                                 </button>
                             ))}
                         </div>
-                        <p className="text-[10px] text-white/40 mt-3 text-center">Этот цвет будет виден всем пользователям.</p>
+                    </div>
+
+                    {/* BANNER PRESETS */}
+                    <div className="p-5 bg-white/5 border border-white/5 rounded-2xl">
+                        <h4 className="text-xs font-bold uppercase text-white mb-4 flex items-center gap-2">
+                            <ImageIcon size={16} className="text-blue-400" /> Фон профиля
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                            {BANNER_PRESETS.map(preset => (
+                                <button 
+                                    key={preset.id} 
+                                    onClick={() => onUpdateProfile({...userProfile, banner: preset.value})}
+                                    className={`h-16 rounded-xl border flex items-center justify-center transition-all active:scale-95 relative overflow-hidden group ${userProfile.banner === preset.value ? 'border-white ring-2 ring-white/20' : 'border-white/10 hover:border-white/30'}`}
+                                    style={{ background: preset.value }}
+                                >
+                                    <span className="relative z-10 text-[9px] font-bold uppercase tracking-widest text-white drop-shadow-lg">{preset.label}</span>
+                                    {userProfile.banner === preset.value && <div className="absolute top-1 right-1 bg-black/50 rounded-full p-0.5"><Check size={10} className="text-white"/></div>}
+                                </button>
+                            ))}
+                        </div>
+                        <p className="text-[10px] text-white/40 mt-3 text-center">Видно всем, кто открывает ваш профиль.</p>
                     </div>
                 </MDiv>
             ) : (

@@ -46,7 +46,8 @@ export const useChatData = (
                         isGroup: true, 
                         username: 'group',
                         created_at: g.created_at, 
-                        bio: g.description 
+                        bio: g.description,
+                        banner: g.banner_url // Map group banner if any
                     },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                     isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
@@ -72,7 +73,8 @@ export const useChatData = (
                         id: pid,
                         user: { 
                             id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', 
-                            username: p.username, isGroup: false, isVerified: p.is_verified, bio: p.bio, email: p.email, created_at: p.created_at 
+                            username: p.username, isGroup: false, isVerified: p.is_verified, bio: p.bio, email: p.email, created_at: p.created_at,
+                            nameColor: p.name_color, banner: p.banner_url // Map custom fields
                         },
                         messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                         isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
@@ -190,11 +192,20 @@ export const useChatData = (
             setChats(prev => prev.map(c => ({ ...c, messages: c.messages.filter(m => m.id !== payload.old.id) })));
         }
         else if (payload.eventType === 'UPDATE' && payload.table === 'profiles') {
-            // Note: Own profile updates are handled in App.tsx via setUserProfile
             const updatedProfile = payload.new;
             setChats(prev => prev.map(c => {
                  if (c.user.id === updatedProfile.id) {
-                     return { ...c, user: { ...c.user, name: updatedProfile.full_name, username: updatedProfile.username, avatar: updatedProfile.avatar_url, isVerified: updatedProfile.is_verified, bio: updatedProfile.bio, email: updatedProfile.email } };
+                     return { ...c, user: { 
+                         ...c.user, 
+                         name: updatedProfile.full_name, 
+                         username: updatedProfile.username, 
+                         avatar: updatedProfile.avatar_url, 
+                         isVerified: updatedProfile.is_verified, 
+                         bio: updatedProfile.bio, 
+                         email: updatedProfile.email,
+                         nameColor: updatedProfile.name_color, // Sync
+                         banner: updatedProfile.banner_url // Sync
+                     }};
                  }
                  return c;
             }));
@@ -321,7 +332,8 @@ export const useChatData = (
                         ...c.user,
                         name: updatedGroup.name,
                         avatar: updatedGroup.avatar_url,
-                        bio: updatedGroup.description
+                        bio: updatedGroup.description,
+                        banner: updatedGroup.banner_url
                     }
                 };
             }
