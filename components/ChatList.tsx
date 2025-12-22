@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, Lock, ChevronRight, Save, Phone, Smartphone, Send, MessageSquare, Group, Info, Music, Gift, Cake, Camera, Loader2, ChevronLeft, Volume2, BellRing, Bell, Moon, Pin, BellOff, Trash2, Shield, Eye, CreditCard, Search, Plus, Users, Check, CheckCheck, Zap, Sparkles, Sun, Leaf, Activity, Gem, Battery, BatteryCharging, AtSign, Terminal, ShieldAlert, BadgeCheck, Play, Pause, PenLine, Mic, Copy, Crown, Calendar, Hash, Edit3, Eraser } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -94,6 +94,8 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [adminUserSearch, setAdminUserSearch] = useState("");
   const [adminSelectedUser, setAdminSelectedUser] = useState<any | null>(null);
   const [adminActionLoading, setAdminActionLoading] = useState(false);
+  const [adminEditMode, setAdminEditMode] = useState(false);
+  const [adminEditData, setAdminEditData] = useState({ name: '', username: '', bio: '' });
   
   // Audio preview state
   const [previewAudio, setPreviewAudio] = useState<HTMLAudioElement | null>(null);
@@ -300,15 +302,26 @@ export const ChatList: React.FC<ChatListProps> = ({
       }
   };
 
-  const handleAdminAction = async (action: 'verify' | 'username' | 'admin', payload: any) => {
+  const handleAdminAction = async (action: 'verify' | 'username' | 'admin' | 'reset', payload: any) => {
       if (!adminSelectedUser) return;
       setAdminActionLoading(true);
       try {
           const updates: any = {};
+          
           if (action === 'verify') updates.is_verified = payload;
           if (action === 'username') updates.username = payload;
           if (action === 'admin') updates.is_admin = payload;
           
+          if (action === 'reset') {
+              // Soft deletion / Banning behavior: Clear profile info
+              updates.full_name = 'Deleted User';
+              updates.username = `deleted_${Date.now()}`;
+              updates.bio = 'Account terminated by administration.';
+              updates.avatar_url = '';
+              updates.is_verified = false;
+              updates.is_admin = false;
+          }
+
           const { error } = await supabase.from('profiles').update(updates).eq('id', adminSelectedUser.id);
           
           if (error) {
@@ -317,11 +330,37 @@ export const ChatList: React.FC<ChatListProps> = ({
           } else {
               showToast("Успешно обновлено", "success");
               setAdminSelectedUser(prev => ({ ...prev, ...updates }));
+              if (action === 'reset') {
+                  setAdminEditMode(false);
+              }
           }
 
       } catch (e) {
           console.error(e);
           showToast("System Error", "error");
+      } finally {
+          setAdminActionLoading(false);
+      }
+  };
+
+  const handleSaveAdminEdit = async () => {
+      if (!adminSelectedUser) return;
+      setAdminActionLoading(true);
+      try {
+          const { error } = await supabase.from('profiles').update({
+              full_name: adminEditData.name,
+              username: adminEditData.username,
+              bio: adminEditData.bio
+          }).eq('id', adminSelectedUser.id);
+
+          if (error) throw error;
+          
+          setAdminSelectedUser(prev => ({ ...prev, name: adminEditData.name, username: adminEditData.username, bio: adminEditData.bio }));
+          setAdminEditMode(false);
+          showToast("Профиль пользователя обновлен", "success");
+      } catch(e) {
+          console.error(e);
+          showToast("Ошибка обновления", "error");
       } finally {
           setAdminActionLoading(false);
       }
@@ -359,10 +398,12 @@ export const ChatList: React.FC<ChatListProps> = ({
                  </div>
             </div>
 
-            <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl relative cursor-pointer group" onClick={() => setActiveModal('profile')}>
-              <img src={userProfile.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar" />
-              <div className="absolute bottom-0 right-0">
-                 <StatusIndicator status={userProfile.status} size="w-2.5 h-2.5" />
+            <div className="relative group cursor-pointer" onClick={() => setActiveModal('profile')}>
+              <div className="w-10 h-10 rounded-xl border border-[var(--border)] overflow-hidden bg-black/40 shadow-xl">
+                  <img src={userProfile.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar" />
+              </div>
+              <div className="absolute -bottom-1 -right-1">
+                 <StatusIndicator status={userProfile.status} size="w-3 h-3" />
               </div>
               {isSuperAdmin && (
                   <div 
@@ -389,9 +430,8 @@ export const ChatList: React.FC<ChatListProps> = ({
 
       <div className="flex-1 overflow-y-auto px-2 pt-2 custom-scrollbar relative">
         {filteredChats.map(chat => {
-          const realtimeStatus = onlineUsers.get(chat.id);
-          let displayStatus: UserStatus = chat.user.status;
-          if (realtimeStatus) displayStatus = realtimeStatus; else displayStatus = 'offline';
+          // FIX: Use Realtime status from onlineUsers map first, then fallback to chat.user.status (DB)
+          const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
           
           return (
           <MDiv 
@@ -404,14 +444,18 @@ export const ChatList: React.FC<ChatListProps> = ({
             className={`flex items-center gap-3 p-2.5 rounded-2xl cursor-pointer transition-all mb-1 relative group ${activeChatId === chat.id ? 'bg-white/10 shadow-lg border border-white/5' : 'hover:bg-white/[0.03]'}`}
           >
             {chat.isPinned && <div className="absolute top-2 right-2 text-vellor-red/80"><Pin size={10} fill="currentColor"/></div>}
-            <div className="w-[50px] h-[50px] rounded-2xl border border-[var(--border)] overflow-hidden shrink-0 relative bg-black">
-              <img src={chat.user.avatar || 'https://via.placeholder.com/56'} className="w-full h-full object-cover" alt={chat.user.name} />
-              {!chat.user.isGroup && (
-                  <div className="absolute bottom-0 right-0">
-                    <StatusIndicator status={displayStatus} />
-                  </div>
-              )}
+            
+            <div className="relative shrink-0">
+                <div className="w-[50px] h-[50px] rounded-2xl border border-[var(--border)] overflow-hidden bg-black">
+                  <img src={chat.user.avatar || 'https://via.placeholder.com/56'} className="w-full h-full object-cover" alt={chat.user.name} />
+                </div>
+                {!chat.user.isGroup && (
+                    <div className="absolute -bottom-1 -right-1">
+                        <StatusIndicator status={realtimeStatus} />
+                    </div>
+                )}
             </div>
+
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-baseline mb-0.5">
                 <h3 className="text-[15px] font-bold truncate flex items-center gap-1.5 text-white/90">
@@ -578,14 +622,14 @@ export const ChatList: React.FC<ChatListProps> = ({
               {activeModal === 'admin_panel' && (
                   <div className="flex flex-col h-full font-mono text-green-400">
                       <div className="flex justify-between items-center mb-6 pb-4 border-b border-green-500/20">
-                          <h2 className="text-lg uppercase tracking-widest flex items-center gap-2"><ShieldAlert /> GOD MODE v1.0</h2>
+                          <h2 className="text-lg uppercase tracking-widest flex items-center gap-2"><ShieldAlert /> GOD MODE v1.1</h2>
                           <button onClick={() => setActiveModal(null)}><X className="text-green-500"/></button>
                       </div>
 
                       <div className="space-y-6">
                           {/* Search */}
                           <div className="space-y-2">
-                              <label className="text-[10px] uppercase opacity-50">User Search Database</label>
+                              <label className="text-[10px] uppercase opacity-50">User Database</label>
                               <div className="flex gap-2">
                                   <input 
                                       value={adminUserSearch}
@@ -597,7 +641,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                           </div>
 
                           {/* Results / Selected User */}
-                          <div className="bg-black/50 border border-green-500/20 rounded p-4 h-64 overflow-y-auto custom-scrollbar">
+                          <div className="bg-black/50 border border-green-500/20 rounded p-4 h-96 overflow-y-auto custom-scrollbar relative">
                               {!adminSelectedUser ? (
                                   <div className="space-y-2">
                                       {globalSearchResults.map(u => (
@@ -610,7 +654,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                                   </div>
                               ) : (
                                   <div className="space-y-4">
-                                      <button onClick={() => setAdminSelectedUser(null)} className="text-xs underline opacity-50 hover:opacity-100">&lt; Back to search</button>
+                                      <button onClick={() => { setAdminSelectedUser(null); setAdminEditMode(false); }} className="text-xs underline opacity-50 hover:opacity-100">&lt; Back to search</button>
                                       
                                       <div className="flex items-center gap-4 border-b border-green-500/20 pb-4">
                                           <img src={adminSelectedUser.avatar || 'https://via.placeholder.com/40'} className="w-12 h-12 rounded bg-gray-900 object-cover grayscale" />
@@ -621,21 +665,55 @@ export const ChatList: React.FC<ChatListProps> = ({
                                           </div>
                                       </div>
 
-                                      <div className="space-y-2">
-                                          <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1">Status Flags</p>
-                                          <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
-                                              <span>Verified Badge</span>
-                                              <button onClick={() => handleAdminAction('verify', !adminSelectedUser.isVerified)} disabled={adminActionLoading} className={`px-2 py-1 text-[10px] border ${adminSelectedUser.isVerified ? 'bg-green-500 text-black border-green-500' : 'border-green-500/50 opacity-50'}`}>
-                                                  {adminSelectedUser.isVerified ? 'TRUE' : 'FALSE'}
-                                              </button>
+                                      {/* ACTION BUTTONS */}
+                                      {!adminEditMode ? (
+                                          <div className="space-y-2">
+                                              <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1">Status Flags</p>
+                                              <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
+                                                  <span>Verified Badge</span>
+                                                  <button onClick={() => handleAdminAction('verify', !adminSelectedUser.isVerified)} disabled={adminActionLoading} className={`px-2 py-1 text-[10px] border ${adminSelectedUser.isVerified ? 'bg-green-500 text-black border-green-500' : 'border-green-500/50 opacity-50'}`}>
+                                                      {adminSelectedUser.isVerified ? 'TRUE' : 'FALSE'}
+                                                  </button>
+                                              </div>
+                                              <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
+                                                  <span>Admin Access</span>
+                                                  <button onClick={() => handleAdminAction('admin', !adminSelectedUser.isAdmin)} disabled={adminActionLoading} className="px-2 py-1 text-[10px] border border-green-500/50 opacity-50 hover:bg-green-500 hover:text-black">
+                                                      TOGGLE
+                                                  </button>
+                                              </div>
+
+                                              <p className="text-[10px] uppercase opacity-50 bg-green-900/20 p-1 mt-4">Manage Profile</p>
+                                              <div className="grid grid-cols-2 gap-2">
+                                                  <button onClick={() => { setAdminEditMode(true); setAdminEditData({ name: adminSelectedUser.name, username: adminSelectedUser.username, bio: adminSelectedUser.bio || '' }); }} className="p-2 border border-blue-500/30 text-blue-400 hover:bg-blue-500/10 rounded flex items-center justify-center gap-2 text-xs">
+                                                      <Edit3 size={14}/> Edit Info
+                                                  </button>
+                                                  <button onClick={() => { if(confirm("Внимание! Это удалит имя, аватар и био пользователя. Продолжить?")) handleAdminAction('reset', true); }} className="p-2 border border-red-500/30 text-red-400 hover:bg-red-500/10 rounded flex items-center justify-center gap-2 text-xs">
+                                                      <Eraser size={14}/> Reset Profile
+                                                  </button>
+                                              </div>
                                           </div>
-                                          <div className="flex items-center justify-between p-2 bg-green-500/5 rounded">
-                                              <span>Admin Access</span>
-                                              <button onClick={() => handleAdminAction('admin', !adminSelectedUser.isAdmin)} disabled={adminActionLoading} className="px-2 py-1 text-[10px] border border-green-500/50 opacity-50 hover:bg-green-500 hover:text-black">
-                                                  TOGGLE
-                                              </button>
+                                      ) : (
+                                          <div className="space-y-3 bg-green-500/5 p-3 rounded border border-green-500/20">
+                                              <div className="space-y-1">
+                                                  <label className="text-[10px] uppercase">Display Name</label>
+                                                  <input value={adminEditData.name} onChange={(e) => setAdminEditData({...adminEditData, name: e.target.value})} className="w-full bg-black border border-green-500/30 p-2 text-sm text-green-400" />
+                                              </div>
+                                              <div className="space-y-1">
+                                                  <label className="text-[10px] uppercase">Username</label>
+                                                  <input value={adminEditData.username} onChange={(e) => setAdminEditData({...adminEditData, username: e.target.value})} className="w-full bg-black border border-green-500/30 p-2 text-sm text-green-400" />
+                                              </div>
+                                              <div className="space-y-1">
+                                                  <label className="text-[10px] uppercase">Bio</label>
+                                                  <textarea value={adminEditData.bio} onChange={(e) => setAdminEditData({...adminEditData, bio: e.target.value})} className="w-full bg-black border border-green-500/30 p-2 text-sm text-green-400 h-20" />
+                                              </div>
+                                              <div className="flex gap-2 pt-2">
+                                                  <button onClick={() => setAdminEditMode(false)} className="flex-1 p-2 bg-gray-800 hover:bg-gray-700 rounded text-white text-xs">Cancel</button>
+                                                  <button onClick={handleSaveAdminEdit} disabled={adminActionLoading} className="flex-1 p-2 bg-green-600 hover:bg-green-500 rounded text-black font-bold text-xs flex items-center justify-center gap-2">
+                                                      {adminActionLoading ? <Loader2 className="animate-spin" size={14}/> : 'Save Changes'}
+                                                  </button>
+                                              </div>
                                           </div>
-                                      </div>
+                                      )}
                                   </div>
                               )}
                           </div>

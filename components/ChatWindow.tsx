@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useTransform } from 'framer-motion';
 import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, MoreVertical, Play, Pause, Trash2, StopCircle, Download, X, Bell, Shield, Smartphone, Pin, Edit2, Crown, LogOut, Plus, Check, Loader2, Reply, ZoomIn, BadgeCheck, Mail, Calendar, User } from 'lucide-react';
-import { Chat, Message, MessageType, CallType, UserStatus } from '../types';
+import { Chat, Message, MessageType, CallType, CallState, UserStatus } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
 
@@ -87,7 +87,7 @@ const AudioPlayer: React.FC<{ url: string, duration?: string }> = ({ url, durati
 };
 
 // --- Swipeable Message Component (Telegram Style) ---
-const SwipeableMessage = ({ children, onReply, isMe }: { children: React.ReactNode, onReply: () => void, isMe: boolean }) => {
+const SwipeableMessage = ({ children, onReply, isMe }: { children?: React.ReactNode, onReply: () => void, isMe: boolean }) => {
     const x = useMotionValue(0);
     const opacity = useTransform(x, [-50, 0], [1, 0]);
     const scale = useTransform(x, [-50, 0], [1, 0.5]);
@@ -323,7 +323,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
   };
 
   const statusColors = { online: 'bg-vellor-red', away: 'bg-yellow-500', dnd: 'bg-crimson', offline: 'bg-gray-600' };
-  const realtimeStatus = onlineUsers.get(chat.id) || chat.user.status;
+  
+  // FIX: Sync status logic with ChatList
+  const realtimeStatus = onlineUsers.get(chat.user.id) || chat.user.status || 'offline';
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -350,7 +352,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
                       <img src={chat.user.avatar || 'https://via.placeholder.com/44'} className="w-full h-full object-cover" alt="Avatar"/>
                     </div>
                     {!chat.user.isGroup && (
-                        <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-black ${statusColors[realtimeStatus] || statusColors.offline}`} />
+                        <div className={`absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-black ${statusColors[realtimeStatus] || statusColors.offline}`} />
                     )}
                 </div>
                 <div className="cursor-pointer" onClick={() => setShowUserInfo(true)}>
