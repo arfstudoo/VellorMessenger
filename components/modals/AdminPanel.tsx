@@ -100,25 +100,70 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
   };
 
   const handleSendBroadcast = async () => {
-    if (!adminBroadcastMsg.trim() || !onBroadcast) return;
-    setIsBroadcasting(true);
-    const success = await onBroadcast(adminBroadcastMsg);
-    setIsBroadcasting(false);
-    if(success) {
-        setAdminBroadcastMsg("");
-        showToast("Рассылка успешно доставлена", "success");
-    } else {
-        showToast("Ошибка отправки рассылки", "error");
+    if (!adminBroadcastMsg.trim()) {
+        showToast("Введите текст сообщения", "warning");
+        return;
     }
+    
+    setIsBroadcasting(true);
+    
+    // Use the prop passed from App.tsx which contains the correct channel logic
+    if (onBroadcast) {
+        const success = await onBroadcast(adminBroadcastMsg);
+        if (success) {
+            setAdminBroadcastMsg("");
+            showToast("Рассылка успешно отправлена всем онлайн пользователям", "success");
+        } else {
+            showToast("Ошибка отправки рассылки (Channel Error)", "error");
+        }
+    } else {
+        showToast("Функция рассылки недоступна", "error");
+    }
+    
+    setIsBroadcasting(false);
   };
 
   const handlePurgeOldMessages = async () => {
-      if(!confirm("Вы уверены? Это удалит старые сообщения из базы.")) return;
+      if(!confirm("Вы уверены? Это удалит старые сообщения из базы навсегда.")) return;
       setIsAdminActionLoading(true);
-      setTimeout(() => {
-          showToast("База данных оптимизирована", "success");
+      
+      try {
+          // Attempt to delete messages older than 30 days
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const { error, count } = await supabase
+            .from('messages')
+            .delete({ count: 'exact' })
+            .lt('created_at', thirtyDaysAgo.toISOString());
+
+          if (error) throw error;
+          
+          showToast(`Удалено сообщений: ${count || 0}`, "success");
+      } catch (e: any) {
+          console.error(e);
+          showToast("Ошибка очистки базы: " + e.message, "error");
+      } finally {
           setIsAdminActionLoading(false);
-      }, 1500);
+      }
+  };
+
+  const handleSystemAction = async (action: 'maintenance' | 'ghost') => {
+      if (!onBroadcast) return;
+      setIsAdminActionLoading(true);
+      
+      const msg = action === 'maintenance' 
+        ? "⚠️ Внимание: Включен режим технических работ. Возможны перебои в работе сервиса."
+        : "👁️ Ghost Protocol Activated. All logging suspended.";
+        
+      const success = await onBroadcast(msg);
+      
+      if (success) {
+          showToast(action === 'maintenance' ? "Режим техработ включен" : "Протокол активирован", "success");
+      } else {
+          showToast("Ошибка активации режима", "error");
+      }
+      setIsAdminActionLoading(false);
   };
 
   return (
@@ -234,8 +279,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                             <h4 className="text-xs font-bold uppercase text-white">Danger Zone</h4>
                         </div>
                         <div className="space-y-3">
-                            <button onClick={handlePurgeOldMessages} disabled={isAdminActionLoading} className="w-full py-3 bg-red-500/20 hover:bg-red-500/40 rounded-xl text-red-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all">
-                                {isAdminActionLoading ? <Loader2 className="animate-spin" /> : <Trash2 size={14}/>} Purge Old Messages
+                            <button onClick={handlePurgeOldMessages} disabled={isAdminActionLoading} className="w-full py-3 bg-red-500/20 hover:bg-red-500/40 rounded-xl text-red-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
+                                {isAdminActionLoading ? <Loader2 className="animate-spin" /> : <Trash2 size={14}/>} Purge Old Messages (>30 days)
                             </button>
                         </div>
                 </div>
@@ -245,10 +290,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onClose, showToast, onli
                             <h4 className="text-xs font-bold uppercase text-white">Global Actions</h4>
                         </div>
                         <div className="space-y-3">
-                            <button onClick={() => { if(onBroadcast) onBroadcast("⚠️ Внимание: Проводятся технические работы. Возможны сбои."); }} className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/40 rounded-xl text-yellow-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all">
+                            <button onClick={() => handleSystemAction('maintenance')} disabled={isAdminActionLoading} className="w-full py-3 bg-yellow-500/20 hover:bg-yellow-500/40 rounded-xl text-yellow-300 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
                                 <Server size={14}/> Maintenance Mode
                             </button>
-                            <button className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all">
+                            <button onClick={() => handleSystemAction('ghost')} disabled={isAdminActionLoading} className="w-full py-3 bg-white/5 hover:bg-white/10 rounded-xl text-white/50 font-bold uppercase text-[10px] tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95">
                                 <Eye size={14}/> Ghost Protocol
                             </button>
                         </div>

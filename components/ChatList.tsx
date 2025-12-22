@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -58,6 +58,17 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chat: Chat } | null>(null);
   
+  // Folders State with Persistence
+  const [activeFolder, setActiveFolder] = useState<'all' | 'personal' | 'groups'>(() => {
+      const saved = localStorage.getItem('vellor_active_folder');
+      return (saved === 'personal' || saved === 'groups') ? saved : 'all';
+  });
+
+  // Persist folder change
+  useEffect(() => {
+      localStorage.setItem('vellor_active_folder', activeFolder);
+  }, [activeFolder]);
+
   // Privacy State
   const [privacyItem, setPrivacyItem] = useState<string | null>(null);
   
@@ -240,10 +251,18 @@ export const ChatList: React.FC<ChatListProps> = ({
       }
   };
 
-  const filteredChats = chats.filter(chat => 
-      chat.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-      chat.lastMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter Logic including Folders
+  const filteredChats = chats.filter(chat => {
+      const matchesSearch = chat.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            chat.lastMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      if (!matchesSearch) return false;
+
+      if (activeFolder === 'personal') return !chat.user.isGroup;
+      if (activeFolder === 'groups') return chat.user.isGroup;
+      
+      return true; // 'all'
+  });
 
   const recentContacts = chats.filter(c => !c.user.isGroup).map(c => c.user);
   const isSuperAdmin = userProfile.username?.toLowerCase() === 'arfstudoo';
@@ -280,6 +299,19 @@ export const ChatList: React.FC<ChatListProps> = ({
             </div>
         </div>
 
+        {/* FOLDERS / TABS */}
+        <div className="flex gap-2 mb-1">
+            <button onClick={() => setActiveFolder('all')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'all' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>
+                Все
+            </button>
+            <button onClick={() => setActiveFolder('personal')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'personal' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>
+                Личные
+            </button>
+            <button onClick={() => setActiveFolder('groups')} className={`flex-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all border ${activeFolder === 'groups' ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/10 hover:bg-white/5'}`}>
+                Группы
+            </button>
+        </div>
+
         {/* This input is just for the header view, the actual search state is used for the list filtering */}
         <div className="relative group">
             {/* We reuse setSearchQuery but note this is strictly for filtering chats, not global user search which is in the modal */}
@@ -291,6 +323,12 @@ export const ChatList: React.FC<ChatListProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 pt-2 pb-20 custom-scrollbar relative touch-pan-y">
+        {filteredChats.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-40 opacity-30 text-white">
+                <Folder size={32} strokeWidth={1} className="mb-2"/>
+                <span className="text-xs">Пусто</span>
+            </div>
+        )}
         {filteredChats.map(chat => (
             <ChatItem 
                 key={chat.id}
@@ -450,36 +488,58 @@ export const ChatList: React.FC<ChatListProps> = ({
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
                          
-                         {/* VERSION 2.0 (NEW) */}
+                         {/* VERSION 2.1.1 (NEW) */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-vellor-red shadow-[0_0_10px_currentColor]" />
+                             <div>
+                                 <h3 className="text-lg font-black text-white">Версия 2.1.1</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">UX Polish</p>
+                             </div>
+                             <div className="space-y-3">
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-vellor-red mb-2 flex items-center gap-2"><Folder size={14}/> Persistent Folders</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Теперь приложение запоминает выбранную вкладку чатов ("Все", "Личные", "Группы") и восстанавливает её при запуске.
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* VERSION 2.1 */}
+                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
+                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
+                             <div>
+                                 <h3 className="text-lg font-black text-white">Версия 2.1</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">Features & Fixes</p>
+                             </div>
+                             <div className="space-y-3">
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Chat Folders</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Добавлена группировка чатов: "Все", "Личные", "Группы".
+                                     </p>
+                                 </div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Audio Waveforms</h4>
+                                     <p className="text-sm text-white/80 leading-relaxed">
+                                         Голосовые сообщения теперь отображаются с визуализацией волны.
+                                     </p>
+                                 </div>
+                             </div>
+                         </div>
+
+                         {/* VERSION 2.0 */}
+                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-30">
+                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div>
                                  <h3 className="text-lg font-black text-white">Версия 2.0</h3>
                                  <p className="text-[10px] text-white/40 font-mono">Genesis Architecture</p>
                              </div>
                              <div className="space-y-3">
                                  <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-green-400 mb-2 flex items-center gap-2"><Settings size={14}/> Atomic Structure</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Atomic Structure</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
                                          Масштабный рефакторинг завершен. Приложение переведено на модульную архитектуру. 
-                                         Интерфейсы чатов, сообщений и модальных окон теперь полностью независимы, что значительно повышает производительность и стабильность.
-                                     </p>
-                                 </div>
-                             </div>
-                         </div>
-                         
-                         {/* VERSION 1.9.1 */}
-                         <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-50">
-                             <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div>
-                                 <h3 className="text-lg font-black text-white">Версия 1.9.1</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">Bug Fixes</p>
-                             </div>
-                             <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2">Исправление ошибок</h4>
-                                     <p className="text-sm text-white/80 leading-relaxed">
-                                         Исправлена ошибка с отображением иконки закрепления чатов.
                                      </p>
                                  </div>
                              </div>

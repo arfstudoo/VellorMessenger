@@ -2,13 +2,13 @@
 {
   "name": "vellor-messenger",
   "private": true,
-  "version": "1.0.3",
+  "version": "2.1.0",
   "main": "electron/main.js",
   "description": "A premium, dark-themed messenger with glassmorphism aesthetics.",
   "author": "ArfStudio",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_GITHUB_USERNAME/YOUR_REPO_NAME"
+    "url": "https://github.com/arfstudoo/VellorMessenger"
   },
   "scripts": {
     "dev": "vite",
@@ -49,8 +49,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "YOUR_GITHUB_USERNAME",
-        "repo": "YOUR_REPO_NAME"
+        "owner": "arfstudoo",
+        "repo": "VellorMessenger"
       }
     ],
     "directories": {
