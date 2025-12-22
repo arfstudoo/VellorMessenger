@@ -13,7 +13,7 @@ const MSvg = motion.svg as any;
 const MPath = motion.path as any;
 
 // PLACEHOLDER API KEY - USER MUST REPLACE WITH THEIR OWN
-const YANDEX_API_KEY = 'YOUR_YANDEX_API_KEY'; 
+const YANDEX_API_KEY = '288c46c6-893f-41bc-b7a6-7f7ec750725a'; 
 
 interface ChatWindowProps {
   chat: Chat;
