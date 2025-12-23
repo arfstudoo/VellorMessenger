@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles, Phone, ArrowUpRight, ArrowDownLeft, Clock, AlertCircle } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles, Phone, ArrowUpRight, ArrowDownLeft, Clock, AlertCircle, Eye, EyeOff, Lock } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType, CallLogItem } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -47,6 +47,9 @@ export const ChatList: React.FC<ChatListProps> = ({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, chat: Chat } | null>(null);
   const [showChangelogAlert, setShowChangelogAlert] = useState(false);
+  
+  // Privacy editing state
+  const [privacyKey, setPrivacyKey] = useState<keyof UserProfile | null>(null);
   
   const [activeFolder, setActiveFolder] = useState<'all' | 'personal' | 'groups'>(() => {
       const saved = localStorage.getItem('vellor_active_folder');
@@ -183,6 +186,23 @@ export const ChatList: React.FC<ChatListProps> = ({
       } else { showToast("Access Denied", "error"); setAdminPin(""); }
   };
 
+  const handlePrivacyChange = async (value: PrivacyValue) => {
+      if (!privacyKey) return;
+      const updatedProfile = { ...userProfile, [privacyKey]: value };
+      onUpdateProfile(updatedProfile);
+      
+      // Persist immediately
+      await supabase.from('profiles').update({ [privacyKey]: value }).eq('id', userProfile.id);
+      
+      setActiveModal('privacy');
+      setPrivacyKey(null);
+  };
+
+  const openPrivacySelector = (key: keyof UserProfile) => {
+      setPrivacyKey(key);
+      setActiveModal('privacy_item');
+  };
+
   const filteredChats = chats.filter(chat => {
       const matchesSearch = chat.user.name.toLowerCase().includes(searchQuery.toLowerCase()) || chat.lastMessage?.text?.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
@@ -193,6 +213,20 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   const recentContacts = chats.filter(c => !c.user.isGroup).map(c => c.user);
   const isSuperAdmin = userProfile.username?.toLowerCase() === 'arfstudoo';
+
+  const PRIVACY_ITEMS = [
+      { key: 'privacy_phone', label: 'Номер телефона', icon: Phone },
+      { key: 'privacy_last_seen', label: 'Последняя активность', icon: Clock },
+      { key: 'privacy_avatar', label: 'Фото профиля', icon: User },
+      { key: 'privacy_calls', label: 'Звонки', icon: Phone },
+      { key: 'privacy_groups', label: 'Приглашения в группы', icon: Users },
+  ];
+
+  const getPrivacyLabel = (val?: string) => {
+      if (val === 'nobody') return 'Никто';
+      if (val === 'contacts') return 'Контакты';
+      return 'Все';
+  };
 
   return (
     <div className="flex flex-col h-full relative">
@@ -258,6 +292,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                 onlineUsers={onlineUsers}
                 typingUsers={typingUsers}
                 settings={settings}
+                myPrivacyLastSeen={userProfile.privacy_last_seen}
             />
         ))}
       </div>
@@ -315,6 +350,8 @@ export const ChatList: React.FC<ChatListProps> = ({
                  <SettingsModal onClose={() => setActiveModal(null)} userProfile={userProfile} onUpdateStatus={onUpdateStatus} onSetTheme={onSetTheme} currentThemeId={currentThemeId} settings={settings} onUpdateSettings={onUpdateSettings} playPreviewSound={playPreviewSound} playingSoundId={playingSoundId} onOpenPrivacy={() => setActiveModal('privacy')} onOpenChangelog={() => setActiveModal('changelog')} onOpenProfile={() => setActiveModal('profile')} />
              )}
              {activeModal === 'profile' && <ProfileModal userProfile={userProfile} onUpdateProfile={onUpdateProfile} onSaveProfile={onSaveProfile} onClose={() => setActiveModal(null)} />}
+             
+             {/* PRIVACY MENU */}
              {activeModal === 'privacy' && (
                  <div className="flex flex-col h-full bg-[#050505] relative">
                      <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
@@ -322,11 +359,68 @@ export const ChatList: React.FC<ChatListProps> = ({
                         <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">Приватность</h2>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-2 custom-scrollbar">
-                         {['Номер телефона', 'Время захода', 'Фото профиля'].map(item => <div key={item} className="p-4 bg-white/5 rounded-2xl text-white text-sm">{item}</div>)}
-                         <div className="text-center text-white/30 text-xs mt-4">Настройки приватности временно недоступны в этом меню (WIP)</div>
+                         {PRIVACY_ITEMS.map(item => (
+                             <button 
+                                key={item.key} 
+                                onClick={() => openPrivacySelector(item.key as keyof UserProfile)}
+                                className="w-full p-4 bg-white/5 border border-white/5 rounded-2xl flex items-center justify-between group hover:bg-white/10 transition-all active:scale-95"
+                             >
+                                 <div className="flex items-center gap-4">
+                                     <div className="p-2 rounded-xl bg-white/5 text-white/60"><item.icon size={18}/></div>
+                                     <div className="text-left">
+                                         <p className="text-sm font-bold text-white">{item.label}</p>
+                                         <p className="text-[10px] text-white/40">{getPrivacyLabel((userProfile as any)[item.key])}</p>
+                                     </div>
+                                 </div>
+                                 <ChevronLeft size={16} className="rotate-180 text-white/20"/>
+                             </button>
+                         ))}
+                         <div className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl mt-4 flex items-start gap-3">
+                             <Lock size={16} className="text-yellow-500 shrink-0 mt-0.5"/>
+                             <p className="text-[10px] text-white/60 leading-relaxed">
+                                 Применяя строгие настройки, вы также можете потерять возможность видеть данные других пользователей (принцип взаимности).
+                             </p>
+                         </div>
                      </div>
                  </div>
              )}
+
+             {/* PRIVACY SELECTOR */}
+             {activeModal === 'privacy_item' && privacyKey && (
+                 <div className="flex flex-col h-full bg-[#050505] relative">
+                     <div className="p-6 border-b border-white/5 flex items-center gap-4 bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">
+                        <button onClick={() => setActiveModal('privacy')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
+                        <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">
+                            {PRIVACY_ITEMS.find(i => i.key === privacyKey)?.label}
+                        </h2>
+                     </div>
+                     <div className="p-6 space-y-2">
+                         <div className="bg-white/5 border border-white/5 rounded-2xl overflow-hidden">
+                             {['everybody', 'contacts', 'nobody'].map((val) => {
+                                 const isSelected = (userProfile as any)[privacyKey] === val || (! (userProfile as any)[privacyKey] && val === 'everybody');
+                                 return (
+                                     <button 
+                                        key={val} 
+                                        onClick={() => handlePrivacyChange(val as PrivacyValue)}
+                                        className="w-full p-4 flex items-center justify-between hover:bg-white/5 transition-colors border-b border-white/5 last:border-0"
+                                     >
+                                         <span className="text-sm font-bold text-white">
+                                             {val === 'everybody' ? 'Все' : val === 'contacts' ? 'Мои контакты' : 'Никто'}
+                                         </span>
+                                         {isSelected && <Check size={16} className="text-vellor-red"/>}
+                                     </button>
+                                 )
+                             })}
+                         </div>
+                         <p className="text-[10px] text-white/30 px-2 pt-2">
+                             {privacyKey === 'privacy_last_seen' ? 
+                                 'Если вы скроете время захода, вы не увидите время захода других.' : 
+                                 'Укажите, кто может видеть эту информацию.'}
+                         </p>
+                     </div>
+                 </div>
+             )}
+
              {activeModal === 'changelog' && (
                  <div className="flex flex-col h-full bg-[#050505] relative">
                      <div className="p-6 border-b border-white/5 flex items-center justify-between bg-black/40 backdrop-blur-xl sticky top-0 z-10 shrink-0">

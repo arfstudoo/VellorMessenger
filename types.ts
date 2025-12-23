@@ -1,6 +1,8 @@
 
 export type UserStatus = 'online' | 'offline' | 'typing' | 'away' | 'dnd';
 
+export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
+
 export interface User {
   id: string;
   name: string;
@@ -17,10 +19,14 @@ export interface User {
   isAdmin?: boolean;
   created_at?: string;
   nameColor?: string;
-  banner?: string; // Custom Profile Banner (CSS gradient or Image URL)
+  banner?: string; 
+  
+  // Privacy props mapped from DB for check logic
+  privacy_phone?: PrivacyValue;
+  privacy_last_seen?: PrivacyValue;
+  privacy_avatar?: PrivacyValue;
+  privacy_calls?: PrivacyValue;
 }
-
-export type PrivacyValue = 'everybody' | 'contacts' | 'nobody';
 
 export interface UserProfile {
   id: string;
@@ -36,7 +42,7 @@ export interface UserProfile {
   isBanned?: boolean;
   created_at?: string;
   nameColor?: string;
-  banner?: string; // Custom Profile Banner
+  banner?: string; 
   
   // Privacy Settings
   privacy_phone?: PrivacyValue;

@@ -15,12 +15,19 @@ interface ChatItemProps {
   onlineUsers: Map<string, UserStatus>;
   typingUsers: Record<string, string[]>;
   settings: { liteMode?: boolean };
+  myPrivacyLastSeen?: string; // To check reciprocity
 }
 
-export const ChatItem: React.FC<ChatItemProps> = ({ chat, activeChatId, onSelectChat, onContextMenu, onlineUsers, typingUsers, settings }) => {
-  // CRITICAL FIX: Only show online status if the user is ACTUALLY in the Presence Map.
-  // We do NOT fallback to `chat.user.status` because the DB might say 'online' when they are actually gone.
-  const realtimeStatus = onlineUsers.has(chat.user.id) ? (onlineUsers.get(chat.user.id) || 'online') : 'offline';
+export const ChatItem: React.FC<ChatItemProps> = ({ chat, activeChatId, onSelectChat, onContextMenu, onlineUsers, typingUsers, settings, myPrivacyLastSeen }) => {
+  // Check reciprocity and target user privacy
+  const isStatusHidden = !chat.user.isGroup && (
+      chat.user.privacy_last_seen === 'nobody' ||
+      myPrivacyLastSeen === 'nobody'
+  );
+
+  const isAvatarHidden = !chat.user.isGroup && chat.user.privacy_avatar === 'nobody';
+
+  const realtimeStatus = !isStatusHidden && onlineUsers.has(chat.user.id) ? (onlineUsers.get(chat.user.id) || 'online') : 'offline';
   
   const typers = typingUsers[chat.id] || [];
   const isMobile = window.innerWidth < 768;
@@ -36,10 +43,14 @@ export const ChatItem: React.FC<ChatItemProps> = ({ chat, activeChatId, onSelect
       {chat.isPinned && <div className="absolute top-2 right-2 text-vellor-red/80"><Pin size={10} fill="currentColor"/></div>}
       
       <div className="relative shrink-0">
-          <div className="w-[50px] h-[50px] rounded-2xl border border-[var(--border)] overflow-hidden bg-black">
-            <img src={chat.user.avatar || 'https://via.placeholder.com/56'} className="w-full h-full object-cover" alt={chat.user.name} />
+          <div className="w-[50px] h-[50px] rounded-2xl border border-[var(--border)] overflow-hidden bg-black flex items-center justify-center">
+            {isAvatarHidden ? (
+                <div className="w-full h-full bg-gray-900"/>
+            ) : (
+                <img src={chat.user.avatar || 'https://via.placeholder.com/56'} className="w-full h-full object-cover" alt={chat.user.name} />
+            )}
           </div>
-          {!chat.user.isGroup && (
+          {!chat.user.isGroup && !isStatusHidden && (
               <div className="absolute -bottom-1 -right-1">
                   <StatusIndicator status={realtimeStatus} />
               </div>

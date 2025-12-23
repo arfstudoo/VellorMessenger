@@ -3,7 +3,7 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -42,6 +42,11 @@
         width: 100%;
         height: 100dvh; /* Dynamic viewport height for mobile browsers */
         overflow: hidden;
+        /* Disable text selection globally for app-like feel */
+        -webkit-user-select: none;
+        user-select: none;
+        /* Disable callouts */
+        -webkit-touch-callout: none;
       }
       body {
         margin: 0;
@@ -56,13 +61,19 @@
         top: 0;
         left: 0;
         overscroll-behavior: none;
-        -webkit-tap-highlight-color: transparent;
+        -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
       }
       
       /* Support for iPhone Notch/Home Indicator */
       body {
         padding-top: env(safe-area-inset-top);
         padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      /* Allow text selection in inputs only */
+      input, textarea {
+        -webkit-user-select: text;
+        user-select: text;
       }
 
       /* ELECTRON DRAG REGION */

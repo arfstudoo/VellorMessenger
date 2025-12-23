@@ -47,7 +47,7 @@ export const useChatData = (
                         username: 'group',
                         created_at: g.created_at, 
                         bio: g.description,
-                        banner: g.banner_url // Map group banner if any
+                        banner: g.banner_url 
                     },
                     messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                     isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
@@ -74,7 +74,12 @@ export const useChatData = (
                         user: { 
                             id: pid, name: p.full_name, avatar: p.avatar_url, status: p.status || 'offline', 
                             username: p.username, isGroup: false, isVerified: p.is_verified, bio: p.bio, email: p.email, created_at: p.created_at,
-                            nameColor: p.name_color, banner: p.banner_url // Map custom fields
+                            nameColor: p.name_color, banner: p.banner_url,
+                            // Map privacy settings
+                            privacy_phone: p.privacy_phone,
+                            privacy_last_seen: p.privacy_last_seen,
+                            privacy_avatar: p.privacy_avatar,
+                            privacy_calls: p.privacy_calls
                         },
                         messages: [], unreadCount: 0, hasStory: false, lastMessage: {} as Message,
                         isPinned: s?.is_pinned || false, isMuted: s?.is_muted || false,
@@ -203,8 +208,13 @@ export const useChatData = (
                          isVerified: updatedProfile.is_verified, 
                          bio: updatedProfile.bio, 
                          email: updatedProfile.email,
-                         nameColor: updatedProfile.name_color, // Sync
-                         banner: updatedProfile.banner_url // Sync
+                         nameColor: updatedProfile.name_color,
+                         banner: updatedProfile.banner_url,
+                         // Update Privacy
+                         privacy_phone: updatedProfile.privacy_phone,
+                         privacy_last_seen: updatedProfile.privacy_last_seen,
+                         privacy_avatar: updatedProfile.privacy_avatar,
+                         privacy_calls: updatedProfile.privacy_calls
                      }};
                  }
                  return c;

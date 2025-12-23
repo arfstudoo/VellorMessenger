@@ -268,7 +268,12 @@ const App: React.FC = () => {
                  isVerified: u.is_verified, 
                  isBanned: u.is_banned,
                  nameColor: u.name_color || prev.nameColor, 
-                 banner: u.banner_url || prev.banner
+                 banner: u.banner_url || prev.banner,
+                 // Update Privacy fields if they change elsewhere
+                 privacy_phone: u.privacy_phone,
+                 privacy_last_seen: u.privacy_last_seen,
+                 privacy_avatar: u.privacy_avatar,
+                 privacy_calls: u.privacy_calls
              }));
         }
         handleRealtimePayload(payload);
@@ -432,7 +437,12 @@ const App: React.FC = () => {
               id: profile.id, name: profile.full_name, username: profile.username, avatar: profile.avatar_url,
               phone: session.user.email || '', bio: profile.bio || '', status: 'online', 
               isAdmin: profile.is_admin || false, isVerified: profile.is_verified || false, isBanned: profile.is_banned || false, created_at: profile.created_at,
-              nameColor: profile.name_color, banner: profile.banner_url
+              nameColor: profile.name_color, banner: profile.banner_url,
+              // Privacy
+              privacy_phone: profile.privacy_phone,
+              privacy_last_seen: profile.privacy_last_seen,
+              privacy_avatar: profile.privacy_avatar,
+              privacy_calls: profile.privacy_calls
            });
            setAppState('app');
         } else { setAppState('auth'); }
@@ -573,7 +583,28 @@ const App: React.FC = () => {
             </div>
             <div className={`flex-1 h-full bg-black/10 relative ${isMobile && !activeChatId ? 'hidden' : 'block'}`}>
               {activeChat && !isDatabaseError ? (
-                <ChatWindow chat={activeChat as Chat} myId={userProfile.id} onBack={() => setActiveChatId(null)} isMobile={isMobile} onSendMessage={sendMessage} markAsRead={handleMarkAsRead} onStartCall={handleStartCall} isPartnerTyping={false} onSendTypingSignal={handleSendTypingSignal} wallpaper={THEMES_CONFIG[currentTheme].wallpaper} onEditMessage={handleEditMessage} onDeleteMessage={handleDeleteMessage} onPinMessage={handlePinMessage} onlineUsers={onlineUsers} showToast={showToast} onLeaveGroup={(gid) => handleLeaveGroup(gid, activeChatId, setActiveChatId)} onDeleteGroup={(gid) => handleDeleteGroup(gid, activeChatId, setActiveChatId)} typingUserNames={typingUsers[activeChat.id] || []} onUpdateGroupInfo={handleUpdateGroupInfo} />
+                <ChatWindow 
+                    chat={activeChat as Chat} 
+                    myId={userProfile.id} 
+                    onBack={() => setActiveChatId(null)} 
+                    isMobile={isMobile} 
+                    onSendMessage={sendMessage} 
+                    markAsRead={handleMarkAsRead} 
+                    onStartCall={handleStartCall} 
+                    isPartnerTyping={false} 
+                    onSendTypingSignal={handleSendTypingSignal} 
+                    wallpaper={THEMES_CONFIG[currentTheme].wallpaper} 
+                    onEditMessage={handleEditMessage} 
+                    onDeleteMessage={handleDeleteMessage} 
+                    onPinMessage={handlePinMessage} 
+                    onlineUsers={onlineUsers} 
+                    showToast={showToast} 
+                    onLeaveGroup={(gid) => handleLeaveGroup(gid, activeChatId, setActiveChatId)} 
+                    onDeleteGroup={(gid) => handleDeleteGroup(gid, activeChatId, setActiveChatId)} 
+                    typingUserNames={typingUsers[activeChat.id] || []} 
+                    onUpdateGroupInfo={handleUpdateGroupInfo} 
+                    userProfile={userProfile} // PASS PROFILE FOR RECIPROCITY CHECK
+                />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>
               )}

@@ -15,7 +15,9 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && cross-env ELECTRON_START_URL=http://localhost:5173 electron .\"",
-    "electron:build": "npm run build && electron-builder"
+    "electron:build": "npm run build && electron-builder",
+    "android": "npm run build && npx cap sync android && npx cap open android",
+    "ios": "npm run build && npx cap sync ios && npx cap open ios"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.3",
@@ -24,7 +26,10 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "electron-updater": "^6.1.7",
-    "electron-log": "^5.1.0"
+    "electron-log": "^5.1.0",
+    "@capacitor/core": "^5.7.0",
+    "@capacitor/android": "^5.7.0",
+    "@capacitor/ios": "^5.7.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.5",
@@ -40,7 +45,8 @@
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
     "vite": "^5.0.12",
-    "wait-on": "^7.2.0"
+    "wait-on": "^7.2.0",
+    "@capacitor/cli": "^5.7.0"
   },
   "build": {
     "appId": "com.vellor.messenger",
