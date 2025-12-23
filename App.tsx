@@ -15,6 +15,11 @@ import { ShieldAlert, RefreshCw, Lock, Radio } from 'lucide-react';
 import { NOTIFICATION_SOUNDS, CALL_RINGTONE_URL, CALL_RINGTONE_FALLBACK } from './constants';
 import { useChatData } from './hooks/useChatData';
 
+// Capacitor Plugins
+import { PushNotifications } from '@capacitor/push-notifications';
+import { App as CapApp } from '@capacitor/app';
+import { Capacitor } from '@capacitor/core';
+
 const MDiv = motion.div as any;
 
 const THEMES_CONFIG = {
@@ -223,6 +228,87 @@ const App: React.FC = () => {
       handleDeleteGroup, handleLeaveGroup, handleUpdateGroupInfo, handleEditMessage, 
       handleDeleteMessage, handlePinMessage, handleMarkAsRead, handleUpdateGroup 
   } = useChatData(userProfile, showToast, playNotificationSound, sendBrowserNotification);
+
+  // --- ANDROID PUSH NOTIFICATIONS & APP STATE LOGIC ---
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== 'web') {
+        const initPush = async () => {
+            try {
+                // 1. Request Permission
+                let permStatus = await PushNotifications.checkPermissions();
+                if (permStatus.receive === 'prompt') {
+                    permStatus = await PushNotifications.requestPermissions();
+                }
+                
+                if (permStatus.receive !== 'granted') {
+                    console.log('Push permission denied');
+                    return;
+                }
+
+                // 2. Register
+                await PushNotifications.register();
+
+                // 3. Listeners
+                PushNotifications.addListener('registration', async (token) => {
+                    console.log('Push Token:', token.value);
+                    // Save token to Supabase for the current user
+                    if (userProfile.id) {
+                        const { error } = await supabase.from('user_push_tokens').upsert({ 
+                            user_id: userProfile.id, 
+                            token: token.value,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'user_id' });
+                        
+                        if (error) console.error("Failed to save push token:", error);
+                        else console.log("Push token saved to Supabase");
+                    }
+                });
+
+                PushNotifications.addListener('registrationError', err => {
+                    console.error('Push Registration Error:', err);
+                });
+
+                PushNotifications.addListener('pushNotificationReceived', notification => {
+                    console.log('Push Received:', notification);
+                    // Native notification is handled by OS when app is backgrounded
+                    // When foregrounded, we can show a toast
+                    if (appState === 'app') {
+                        showToast(notification.title || 'Новое сообщение', 'info');
+                        playNotificationSound();
+                    }
+                });
+
+                PushNotifications.addListener('pushNotificationActionPerformed', notification => {
+                    console.log('Push Action:', notification);
+                    // Deep linking logic can go here
+                });
+
+            } catch (e) {
+                console.error("Push init failed", e);
+            }
+        };
+
+        if (userProfile.id) {
+            initPush();
+        }
+
+        // Handle App State (Background/Foreground)
+        CapApp.addListener('appStateChange', ({ isActive }) => {
+            if (isActive) {
+                // App came to foreground - refresh data
+                fetchChats();
+                if (userProfile.id) {
+                    supabase.from('profiles').update({ status: 'online' }).eq('id', userProfile.id);
+                }
+            } else {
+                // App went to background
+                if (userProfile.id) {
+                    supabase.from('profiles').update({ status: 'away' }).eq('id', userProfile.id);
+                }
+            }
+        });
+    }
+  }, [userProfile.id]);
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -501,8 +587,6 @@ const App: React.FC = () => {
   const activeChat = chats.find(c => c.id === activeChatId) || (tempChatUser?.id === activeChatId ? { id: activeChatId, user: tempChatUser, messages: [], unreadCount: 0, lastMessage: {} as Message } : null);
 
   // MAINTENANCE LOGIC
-  // 1. If user is owner (arfstudoo) OR is Admin -> NEVER SHOW maintenance
-  // 2. Otherwise -> show if enabled
   const isOwner = userProfile.username?.toLowerCase() === 'arfstudoo';
   const showMaintenance = isMaintenanceMode && appState === 'app' && !userProfile.isAdmin && !isOwner;
 
@@ -517,10 +601,8 @@ const App: React.FC = () => {
       <div className="absolute inset-0 z-0 opacity-[0.05] bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] pointer-events-none" />
       <Toast message={toast.message} type={toast.type} isVisible={toast.visible} onClose={() => setToast(prev => ({...prev, visible: false}))} icon={toast.icon}/>
 
-      {/* Maintenance Overlay */}
       {showMaintenance && <MaintenanceOverlay />}
 
-      {/* Broadcast Overlay */}
       <AnimatePresence>
           {broadcastAlert && (
               <MDiv initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -100, opacity: 0 }} className="fixed top-10 left-0 right-0 z-[99999] flex justify-center p-4 pointer-events-none">
@@ -603,7 +685,7 @@ const App: React.FC = () => {
                     onDeleteGroup={(gid) => handleDeleteGroup(gid, activeChatId, setActiveChatId)} 
                     typingUserNames={typingUsers[activeChat.id] || []} 
                     onUpdateGroupInfo={handleUpdateGroupInfo} 
-                    userProfile={userProfile} // PASS PROFILE FOR RECIPROCITY CHECK
+                    userProfile={userProfile} 
                 />
               ) : (
                 <div className="hidden md:flex flex-col items-center justify-center h-full opacity-10 select-none pointer-events-none"><h1 className="text-[140px] font-black italic tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-transparent">VELLOR</h1></div>

@@ -7,6 +7,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#000000" />
     <title>VellorMessenger</title>
     <link rel="manifest" href="/manifest.json">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡️</text></svg>">
@@ -107,9 +108,10 @@
       .mirror-mode { transform: scaleX(-1); }
       textarea, input { background: transparent; color: inherit; border: none; outline: none; }
 
-      /* LITE MODE & MOBILE HARDCORE OPTIMIZATIONS */
+      /* MOBILE OPTIMIZATIONS (ANDROID PERFORMANCE) */
       @media (max-width: 768px) {
         * {
+          /* DISABLE BLUR ON MOBILE FOR PERFORMANCE */
           backdrop-filter: none !important;
           -webkit-backdrop-filter: none !important;
           box-shadow: none !important;
@@ -117,25 +119,32 @@
           transition-property: opacity, transform !important; 
         }
 
+        /* Replace glass effect with solid semi-transparent backgrounds */
         .backdrop-blur-3xl,
         .backdrop-blur-2xl,
         .backdrop-blur-xl,
         .backdrop-blur-md,
         .backdrop-blur-sm,
         [class*="backdrop-blur"],
-        .glass-panel,
-        .bg-white\/5,
-        .bg-black\/30,
-        .bg-black\/40,
-        .bg-black\/50 {
+        .glass-panel {
           background-color: #080808 !important; 
           border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        .bg-black\/30, .bg-black\/40, .bg-black\/50, .bg-white\/5, .bg-white\/10 {
+            background-color: #111111 !important;
+        }
+
+        /* Optimize list rendering */
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
         }
         
         input, textarea {
             background-color: transparent !important;
         }
         
+        /* Disable expensive hover effects on touch */
         .hover\:scale-110:hover, 
         .hover\:scale-105:hover,
         .hover\:bg-white\/10:hover {
@@ -161,14 +170,18 @@
   <script type="importmap">
 {
   "imports": {
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.559.0",
-    "react/": "https://aistudiocdn.com/react@^19.2.1/",
-    "react": "https://aistudiocdn.com/react@^19.2.1",
-    "framer-motion": "https://aistudiocdn.com/framer-motion@^12.23.26",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.309.0",
+    "react/": "https://aistudiocdn.com/react@^18.2.0/",
+    "react": "https://aistudiocdn.com/react@^18.2.0",
+    "framer-motion": "https://aistudiocdn.com/framer-motion@^10.18.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^18.2.0/",
     "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "vite": "https://esm.sh/vite@^7.3.0"
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^4.2.1",
+    "vite": "https://esm.sh/vite@^5.0.12",
+    "@capacitor/core": "https://esm.sh/@capacitor/core@^5.7.0",
+    "@capacitor/app": "https://esm.sh/@capacitor/app@^5.0.6",
+    "@capacitor/push-notifications": "https://esm.sh/@capacitor/push-notifications@^5.1.0",
+    "path": "https://esm.sh/path@^0.12.7"
   }
 }
 </script>

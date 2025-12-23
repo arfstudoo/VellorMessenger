@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles, Phone, ArrowUpRight, ArrowDownLeft, Clock, AlertCircle, Eye, EyeOff, Lock } from 'lucide-react';
+import { Menu, X, Settings, User, LogOut, ChevronLeft, Crown, BadgeCheck, History, ShieldAlert, Check, Folder, Users, MessageCircle, Monitor, Keyboard, Zap, Bug, Sparkles, Phone, ArrowUpRight, ArrowDownLeft, Clock, AlertCircle, Eye, EyeOff, Lock, Smartphone, CloudLightning } from 'lucide-react';
 import { Chat, UserProfile, UserStatus, PrivacyValue, User as UserType, CallLogItem } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -31,7 +31,7 @@ interface ChatListProps {
   settings: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean; notificationSound?: string };
   onUpdateSettings: (s: { sound: boolean; notifications: boolean; pulsing?: boolean; liteMode?: boolean; notificationSound?: string }) => void;
   typingUsers: Record<string, string[]>; 
-  onChatAction: (chatId: string, action: 'pin' | 'mute' | 'delete') => void;
+  onChatAction: (chatId, action) => void;
   showToast: (msg: string, type: ToastType) => void;
   onlineUsers: Map<string, UserStatus>;
   onBroadcast?: (message: string) => Promise<boolean>; 
@@ -58,13 +58,13 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   useEffect(() => {
       const lastVersion = localStorage.getItem('vellor_version');
-      if (lastVersion !== '2.3.2') {
+      if (lastVersion !== '2.3.4') {
           setShowChangelogAlert(true);
       }
   }, []);
 
   const handleOpenChangelog = () => {
-      localStorage.setItem('vellor_version', '2.3.2');
+      localStorage.setItem('vellor_version', '2.3.4');
       setShowChangelogAlert(false);
       setActiveModal('changelog');
   };
@@ -131,7 +131,15 @@ export const ChatList: React.FC<ChatListProps> = ({
           const { data, error } = await query;
           if (!error && data) {
               setGlobalSearchResults(data.map(p => ({
-                  id: p.id, name: p.full_name, username: p.username, avatar: p.avatar_url, status: p.status || 'offline', bio: p.bio, isVerified: p.is_verified, isAdmin: p.is_admin, isBanned: p.is_banned
+                  id: p.id,
+                  name: p.full_name,
+                  username: p.username,
+                  avatar: p.avatar_url,
+                  status: p.status || 'offline',
+                  bio: p.bio,
+                  isVerified: p.is_verified,
+                  isAdmin: p.is_admin,
+                  isBanned: p.is_banned
               })));
           }
           setIsSearchingGlobal(false);
@@ -239,7 +247,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     <button onClick={handleOpenChangelog} className="w-full bg-gradient-to-r from-vellor-red/20 to-transparent border border-vellor-red/30 rounded-xl p-2.5 flex items-center gap-3 mb-2 group">
                         <div className="bg-vellor-red rounded-lg p-1 text-white animate-pulse"><Sparkles size={14}/></div>
                         <div className="text-left flex-1">
-                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.2</p>
+                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.4</p>
                             <p className="text-[10px] text-white/70">Нажмите, чтобы узнать что нового</p>
                         </div>
                     </button>
@@ -428,43 +436,47 @@ export const ChatList: React.FC<ChatListProps> = ({
                             <button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
                             <div>
                                 <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">UPDATES</h2>
-                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.2</p>
+                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.4</p>
                             </div>
                         </div>
                         <div className="p-2 bg-vellor-red/10 rounded-lg"><History size={16} className="text-vellor-red"/></div>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar pb-24">
-                         {/* VERSION 2.3.2 (NEW) */}
+                         
+                         {/* VERSION 2.3.4 (NEW) */}
                          <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
                              <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
                              <div>
-                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Vellor v2.3.2</h3>
-                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">Четкое обновление</p>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">System Patch</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.4</p>
                              </div>
                              
                              <div className="space-y-3">
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Bug size={14} className="text-red-400"/> Фиксы</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Bug size={14} className="text-blue-400"/> Build Fixes</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Короче, починил техработы. Раньше они висели даже после выключения, теперь всё четко. Если вы админ — вас вообще не заблокирует.
+                                         Исправлена ошибка сборки "Rollup failed to resolve import", возникающая при отсутствии пакетов Capacitor. Добавлена автоматическая подмена на mock-файлы.
                                      </p>
                                  </div>
-
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Кастомные профили</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><CloudLightning size={14} className="text-yellow-400"/> Stability</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Добавил поле для ссылки на картинку. Теперь в профиле можно поставить ЛЮБОЙ фон, хоть гифку с котиками. Просто вставь ссылку.
+                                         Повышена стабильность веб-версии при отсутствии нативных модулей.
                                      </p>
                                  </div>
                              </div>
                          </div>
 
-                         {/* VERSION 2.3.1 */}
+                         {/* VERSION 2.3.3 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
-                             <div><h3 className="text-lg font-black text-white">Обнова для души</h3><p className="text-[10px] text-white/40 font-mono">v2.3.1</p></div>
+                             <div>
+                                 <h3 className="text-lg font-black text-white uppercase tracking-tight">Android Optimization</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">v2.3.3</p>
+                             </div>
+                             
                              <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Phone size={14}/> Звонки</h4><p className="text-sm text-white/80 leading-relaxed">Добавил историю звонков.</p></div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Smartphone size={14} className="text-blue-400"/> Фоновая работа</h4><p className="text-sm text-white/80 leading-relaxed">Оптимизация батареи и работы в фоне.</p></div>
                              </div>
                          </div>
                      </div>
