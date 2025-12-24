@@ -548,7 +548,8 @@ export const CallModal: React.FC<CallModalProps> = ({
                           ref={remoteVideoRef} 
                           autoPlay 
                           playsInline 
-                          className={`w-full h-full ${remoteIsScreenSharing ? 'object-contain' : 'object-cover'}`} 
+                          // CHANGED: object-contain allows video to fit without stretching or cropping, fixing the 'stretched webcam' issue and ensuring screen shares are readable.
+                          className={`w-full h-full object-contain`} 
                           style={{ display: remoteStream?.getVideoTracks().length ? 'block' : 'none' }}
                        />
 

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Trash2, StopCircle, X, Edit2, Crown, LogOut, Check, Loader2, Reply, BadgeCheck, Mail, Calendar, User, ArrowDown, Users, Search, Plus, Save, MapPin, Lock } from 'lucide-react';
+import { ArrowLeft, Send, Paperclip, Smile, Mic, Phone, Video, Info, Image as ImageIcon, FileText, Trash2, StopCircle, X, Edit2, Crown, LogOut, Check, Loader2, Reply, BadgeCheck, Mail, Calendar, User, ArrowDown, Users, Search, Plus, Save, MapPin, Lock, CalendarDays } from 'lucide-react';
 import { Chat, MessageType, CallType, UserStatus, User as UserType, UserProfile } from '../types';
 import { supabase } from '../supabaseClient';
 import { ToastType } from './Toast';
@@ -36,7 +36,25 @@ interface ChatWindowProps {
 }
 
 const QUICK_REACTIONS = ["❤️", "👍", "🔥", "😂", "😮", "😢"];
-const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😷","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😺","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
+const EMOJI_LIST = ["😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","😊","😇","🙂","🙃","😉","😌","😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩","🥳","😏","😒","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺","😢","😭","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😶‍🌫️","😱","😨","ox","🤔","🤫","🤭","🫢","🫡","🫠","🤥","😶","🫥","😐","🫤","😑","🫨","😬","🙄","😯","😦","😧","😮","😲","🥱","😴","🤤","😪","😵","😵‍💫","🤐","🥴","🤢","🤮","🤧","😖","🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃","😺","😺","😹","😻","😼","😽","🙀","😿","😾","🫶","👋","🤚","🖐️","✋","🖖","🫱","🫲","🫳","🫴","🫸","👌","🤌","🤏","✌️","🤞","🫰","🤟","🤘","🤙","👈","👉","👆","🖕","👇","☝️","🫵","👍","👎","✊","👊","🤛","🤜","👏","🙌","🫶","👐","🤲","🤝","🙏"];
+
+// Helper to check same day
+const isSameDay = (d1: Date, d2: Date) => {
+    return d1.getFullYear() === d2.getFullYear() &&
+           d1.getMonth() === d2.getMonth() &&
+           d1.getDate() === d2.getDate();
+};
+
+const formatDateSeparator = (date: Date) => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (isSameDay(date, today)) return "Сегодня";
+    if (isSameDay(date, yesterday)) return "Вчера";
+    
+    return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: today.getFullYear() !== date.getFullYear() ? 'numeric' : undefined });
+};
 
 export const ChatWindow: React.FC<ChatWindowProps> = ({ 
     chat, myId, onBack, isMobile, onSendMessage, markAsRead, onStartCall, isPartnerTyping, onSendTypingSignal, wallpaper,
@@ -476,6 +494,9 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
       onStartCall(chat.id, type);
   };
 
+  // --- RENDER LOGIC WITH SEPARATORS ---
+  let unreadSeparatorShown = false;
+
   return (
     <div className="flex flex-col h-full relative overflow-hidden bg-black/10">
         <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept={uploadingType === 'image' ? "image/*" : "*"} />
@@ -537,8 +558,7 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
             </div>
         </div>
 
-        {/* ... Rest of ChatWindow (Message List, Input, etc) ... */}
-        {/* ... (Skipping middle rendering for brevity, no changes needed in message list logic itself) ... */}
+        {/* MESSAGES LIST */}
         <AnimatePresence>
             {pinnedMessage && (
                 <MDiv onClick={() => scrollToMessage(pinnedMessage.id)} initial={{height:0}} animate={{height:'auto'}} exit={{height:0}} className="bg-black/40 backdrop-blur-md border-b border-vellor-red/20 flex items-center gap-3 px-4 py-1.5 cursor-pointer z-20">
@@ -549,23 +569,51 @@ export const ChatWindow: React.FC<ChatWindowProps> = ({
         </AnimatePresence>
 
         <div ref={messagesContainerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto p-2 md:p-6 space-y-1 custom-scrollbar relative z-10 scroll-smooth touch-pan-y">
-            {chat.messages.map((msg) => (
-                <MessageItem 
-                    key={msg.id} 
-                    msg={msg} 
-                    isMe={msg.senderId === 'me' || msg.senderId === myId} 
-                    chatUser={chat.user} 
-                    groupMembers={groupMembers} 
-                    myId={myId} 
-                    onContextMenu={handleContextMenu} 
-                    onReply={(m: any) => setReplyingTo(m)} 
-                    scrollToMessage={scrollToMessage} 
-                    setZoomedImage={setZoomedImage} 
-                    chatMessages={chat.messages} 
-                    handleToggleReaction={handleToggleReaction}
-                    onShowProfile={handleViewMemberProfile}
-                />
-            ))}
+            {chat.messages.map((msg, index) => {
+                const prevMsg = chat.messages[index - 1];
+                const dateChanged = !prevMsg || !isSameDay(new Date(prevMsg.timestamp), new Date(msg.timestamp));
+                
+                // Unread Separator Logic
+                // If message is not from me, is not read, and we haven't shown separator yet
+                const isIncoming = msg.senderId !== myId && msg.senderId !== 'me';
+                const showUnreadSeparator = isIncoming && !msg.isRead && !unreadSeparatorShown;
+                if (showUnreadSeparator) unreadSeparatorShown = true;
+
+                return (
+                    <React.Fragment key={msg.id}>
+                        {dateChanged && (
+                            <div className="flex justify-center my-4 sticky top-0 z-20 pointer-events-none">
+                                <span className="text-[10px] font-bold text-white/50 bg-black/40 backdrop-blur-xl border border-white/5 px-3 py-1 rounded-full shadow-lg flex items-center gap-1.5">
+                                   <CalendarDays size={10} className="opacity-70"/> {formatDateSeparator(new Date(msg.timestamp))}
+                                </span>
+                            </div>
+                        )}
+                        
+                        {showUnreadSeparator && (
+                            <div className="flex items-center justify-center my-4 gap-4 opacity-80">
+                                <div className="h-px bg-gradient-to-r from-transparent via-vellor-red/50 to-transparent flex-1" />
+                                <span className="text-[10px] font-bold text-vellor-red uppercase tracking-widest bg-vellor-red/10 px-2 py-0.5 rounded-md border border-vellor-red/20">Непрочитанные сообщения</span>
+                                <div className="h-px bg-gradient-to-r from-transparent via-vellor-red/50 to-transparent flex-1" />
+                            </div>
+                        )}
+
+                        <MessageItem 
+                            msg={msg} 
+                            isMe={msg.senderId === 'me' || msg.senderId === myId} 
+                            chatUser={chat.user} 
+                            groupMembers={groupMembers} 
+                            myId={myId} 
+                            onContextMenu={handleContextMenu} 
+                            onReply={(m: any) => setReplyingTo(m)} 
+                            scrollToMessage={scrollToMessage} 
+                            setZoomedImage={setZoomedImage} 
+                            chatMessages={chat.messages} 
+                            handleToggleReaction={handleToggleReaction}
+                            onShowProfile={handleViewMemberProfile}
+                        />
+                    </React.Fragment>
+                );
+            })}
         </div>
         
         {showScrollButton && (
