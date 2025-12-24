@@ -58,13 +58,13 @@ export const ChatList: React.FC<ChatListProps> = ({
 
   useEffect(() => {
       const lastVersion = localStorage.getItem('vellor_version');
-      if (lastVersion !== '2.3.4') {
+      if (lastVersion !== '2.3.5') {
           setShowChangelogAlert(true);
       }
   }, []);
 
   const handleOpenChangelog = () => {
-      localStorage.setItem('vellor_version', '2.3.4');
+      localStorage.setItem('vellor_version', '2.3.5');
       setShowChangelogAlert(false);
       setActiveModal('changelog');
   };
@@ -247,7 +247,7 @@ export const ChatList: React.FC<ChatListProps> = ({
                     <button onClick={handleOpenChangelog} className="w-full bg-gradient-to-r from-vellor-red/20 to-transparent border border-vellor-red/30 rounded-xl p-2.5 flex items-center gap-3 mb-2 group">
                         <div className="bg-vellor-red rounded-lg p-1 text-white animate-pulse"><Sparkles size={14}/></div>
                         <div className="text-left flex-1">
-                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.4</p>
+                            <p className="text-[10px] font-bold text-vellor-red uppercase tracking-wider">Обновление v2.3.5</p>
                             <p className="text-[10px] text-white/70">Нажмите, чтобы узнать что нового</p>
                         </div>
                     </button>
@@ -436,47 +436,46 @@ export const ChatList: React.FC<ChatListProps> = ({
                             <button onClick={() => setActiveModal('settings')} className="p-3 -ml-2 text-white/40 hover:text-white transition-colors active:scale-90"><ChevronLeft size={24}/></button>
                             <div>
                                 <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-white/90">UPDATES</h2>
-                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.4</p>
+                                <p className="text-[9px] text-white/40 font-mono">Build v2.3.5</p>
                             </div>
                         </div>
                         <div className="p-2 bg-vellor-red/10 rounded-lg"><History size={16} className="text-vellor-red"/></div>
                      </div>
                      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar pb-24">
                          
-                         {/* VERSION 2.3.4 (NEW) */}
+                         {/* VERSION 2.3.5 (NEW) */}
                          <div className="relative pl-6 border-l-2 border-vellor-red space-y-4">
                              <div className="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-vellor-red shadow-[0_0_15px_#ff0033]" />
                              <div>
-                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">System Patch</h3>
-                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.4</p>
+                                 <h3 className="text-2xl font-black text-white uppercase tracking-tight">Black Screen Fix</h3>
+                                 <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-1">v2.3.5</p>
                              </div>
                              
                              <div className="space-y-3">
                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Bug size={14} className="text-blue-400"/> Build Fixes</h4>
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Monitor size={14} className="text-blue-400"/> PC & Web Support</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Исправлена ошибка сборки "Rollup failed to resolve import", возникающая при отсутствии пакетов Capacitor. Добавлена автоматическая подмена на mock-файлы.
+                                         Исправлена критическая ошибка "черного экрана" при запуске на ПК и веб-сборке. Обновлена конфигурация путей (Base path: './').
                                      </p>
                                  </div>
-                                 <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
-                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><CloudLightning size={14} className="text-yellow-400"/> Stability</h4>
+                                  <div className="p-4 bg-gradient-to-br from-white/5 to-transparent border border-white/5 rounded-2xl relative overflow-hidden group">
+                                     <h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Zap size={14} className="text-yellow-400"/> Optimization</h4>
                                      <p className="text-sm text-white/80 leading-relaxed">
-                                         Повышена стабильность веб-версии при отсутствии нативных модулей.
+                                         Удалены конфликтующие import maps. Сборка стала легче и стабильнее.
                                      </p>
                                  </div>
                              </div>
                          </div>
-
-                         {/* VERSION 2.3.3 */}
+                        
+                         {/* VERSION 2.3.4 */}
                          <div className="relative pl-6 border-l border-white/10 space-y-4 opacity-60 hover:opacity-100 transition-opacity">
                              <div className="absolute -left-[5px] top-0 w-2.5 h-2.5 rounded-full bg-white/20" />
                              <div>
-                                 <h3 className="text-lg font-black text-white uppercase tracking-tight">Android Optimization</h3>
-                                 <p className="text-[10px] text-white/40 font-mono">v2.3.3</p>
+                                 <h3 className="text-lg font-black text-white uppercase tracking-tight">System Patch</h3>
+                                 <p className="text-[10px] text-white/40 font-mono">v2.3.4</p>
                              </div>
-                             
                              <div className="space-y-3">
-                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Smartphone size={14} className="text-blue-400"/> Фоновая работа</h4><p className="text-sm text-white/80 leading-relaxed">Оптимизация батареи и работы в фоне.</p></div>
+                                 <div className="p-4 bg-white/5 border border-white/5 rounded-2xl"><h4 className="text-xs font-bold text-white mb-2 flex items-center gap-2"><Bug size={14} className="text-blue-400"/> Build Fixes</h4><p className="text-sm text-white/80 leading-relaxed">Исправлена ошибка сборки "Rollup failed to resolve import".</p></div>
                              </div>
                          </div>
                      </div>
