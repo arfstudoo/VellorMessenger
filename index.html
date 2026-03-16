@@ -1,0 +1,197 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#000000" />
+    <title>VellorMessenger</title>
+    <link rel="manifest" href="/manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚡️</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              vellor: {
+                black: '#000000',
+                dark: '#0a0a0a',
+                glass: 'rgba(255, 255, 255, 0.05)',
+                glassBorder: 'rgba(255, 255, 255, 0.1)',
+                red: '#ff0033',
+                crimson: '#DC143C',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --bg: #000000;
+        --panel: rgba(20, 20, 20, 0.6);
+        --accent: #ff0033;
+        --text: #ffffff;
+        --border: rgba(255, 255, 255, 0.08);
+      }
+      html {
+        background-color: var(--bg);
+        width: 100%;
+        height: 100dvh; /* Dynamic viewport height for mobile browsers */
+        overflow: hidden;
+        /* Disable text selection globally for app-like feel */
+        -webkit-user-select: none;
+        user-select: none;
+        /* Disable callouts */
+        -webkit-touch-callout: none;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        overflow: hidden;
+        width: 100%;
+        height: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent; /* Remove blue highlight on tap */
+      }
+      
+      /* Support for iPhone Notch/Home Indicator */
+      body {
+        padding-top: env(safe-area-inset-top);
+        padding-bottom: env(safe-area-inset-bottom);
+      }
+
+      /* Allow text selection in inputs only */
+      input, textarea {
+        -webkit-user-select: text;
+        user-select: text;
+      }
+
+      /* ELECTRON DRAG REGION */
+      /* This allows dragging the window from the top area */
+      .app-drag-region {
+        -webkit-app-region: drag;
+        height: 30px;
+        width: 100%;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 9999;
+        pointer-events: none; /* Let clicks pass through to buttons underneath if needed, but usually header handles drag */
+      }
+      /* Elements that should be clickable inside the drag region (like close buttons) need -webkit-app-region: no-drag */
+      button, input, textarea, .no-drag {
+        -webkit-app-region: no-drag;
+      }
+
+      ::-webkit-scrollbar { width: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+      ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+      
+      .glass-panel {
+        background: var(--panel);
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 1px solid var(--border);
+      }
+      .mirror-mode { transform: scaleX(-1); }
+      textarea, input { background: transparent; color: inherit; border: none; outline: none; }
+
+      /* MOBILE OPTIMIZATIONS (ANDROID PERFORMANCE) */
+      @media (max-width: 768px) {
+        * {
+          /* DISABLE BLUR ON MOBILE FOR PERFORMANCE */
+          backdrop-filter: none !important;
+          -webkit-backdrop-filter: none !important;
+          box-shadow: none !important;
+          text-shadow: none !important;
+          transition-property: opacity, transform !important; 
+        }
+
+        /* Replace glass effect with solid semi-transparent backgrounds */
+        .backdrop-blur-3xl,
+        .backdrop-blur-2xl,
+        .backdrop-blur-xl,
+        .backdrop-blur-md,
+        .backdrop-blur-sm,
+        [class*="backdrop-blur"],
+        .glass-panel {
+          background-color: #080808 !important; 
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        
+        .bg-black\/30, .bg-black\/40, .bg-black\/50, .bg-white\/5, .bg-white\/10 {
+            background-color: #111111 !important;
+        }
+
+        /* Optimize list rendering */
+        .overflow-y-auto {
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        input, textarea {
+            background-color: transparent !important;
+        }
+        
+        /* Disable expensive hover effects on touch */
+        .hover\:scale-110:hover, 
+        .hover\:scale-105:hover,
+        .hover\:bg-white\/10:hover {
+            transform: none !important;
+            background-color: inherit !important;
+        }
+      }
+
+      body.lite-mode * {
+        backdrop-filter: none !important;
+        -webkit-backdrop-filter: none !important;
+        box-shadow: none !important;
+        text-shadow: none !important;
+      }
+      
+      body.lite-mode .backdrop-blur-3xl,
+      body.lite-mode .backdrop-blur-2xl,
+      body.lite-mode [class*="backdrop-blur"] {
+        background-color: rgba(5, 5, 5, 0.98) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+      }
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.89.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "@capacitor/push-notifications": "https://esm.sh/@capacitor/push-notifications@^8.0.0",
+    "@capacitor/app": "https://esm.sh/@capacitor/app@^8.0.0",
+    "framer-motion": "https://esm.sh/framer-motion@^12.23.26",
+    "url": "https://esm.sh/url@^0.11.4",
+    "path": "https://esm.sh/path@^0.12.7",
+    "@capacitor/core": "https://esm.sh/@capacitor/core@^8.0.0",
+    "module": "https://esm.sh/module@^2.0.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div class="app-drag-region"></div>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+{
+  "name": "VellorMessenger",
+  "description": "A premium, dark-themed messenger with glassmorphism aesthetics and cinematic animations.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ],
+  "changelog": [
+    {
+      "version": "2.0.0",
+      "date": "2026-02-27",
+      "title": "massive security & features update",
+      "changes": [
+        {
+          "category": "security",
+          "items": [
+            "admin panel now secured with encrypted PIN (SHA256)",
+            "all admin actions logged to database with timestamps",
+            "admin access restricted to username 'arfstudoo' only",
+            "backend verification for admin PIN instead of client-side",
+            "default PIN is 2077 (change after setup)"
+          ]
+        },
+        {
+          "category": "device management",
+          "items": [
+            "fixed duplicate key error on device insertion (now using UPSERT)",
+            "optimized device tracking - only updates necessary devices",
+            "fixed infinite login/logout loop (delayed first check to 15s)",
+            "removed redundant broadcast subscriptions",
+            "simplified device realtime subscriptions"
+          ]
+        },
+        {
+          "category": "chat features",
+          "items": [
+            "drafts - auto-save unsent messages when switching chats",
+            "draft indicator in chat list (orange color)",
+            "drafts stored in localStorage with auto-cleanup",
+            "mentions - type @ to mention group members",
+            "mention suggestions with fuzzy search",
+            "mentions highlighted in blue with background",
+            "search in chat - find messages by text",
+            "search navigation (next/prev results)",
+            "auto-scroll to found messages with highlight",
+            "forward messages to other chats",
+            "forwarded messages show 'Переслано от [name]'",
+            "forward modal with all available chats"
+          ]
+        },
+        {
+          "category": "ui improvements",
+          "items": [
+            "message colors changed from red to dark blue theme",
+            "brighter read receipts (blue #60a5fa)",
+            "improved input field design (52px height, better borders)",
+            "send button with 3-color gradient and hover effect",
+            "larger icons (22-23px) and rounder corners (1.6rem)",
+            "fixed scroll - now scrolls to bottom completely",
+            "pinned badge now blue instead of red",
+            "reactions with blue accent colors",
+            "added shadow-glow-blue effect"
+          ]
+        },
+        {
+          "category": "database",
+          "items": [
+            "added admin_pins table for secure PIN storage",
+            "added admin_logs table for action tracking",
+            "added forwarded_from and forwarded_from_name to messages",
+            "added indexes for better query performance",
+            "created verify_admin_pin() function",
+            "created set_admin_pin() function",
+            "created log_admin_action() function"
+          ]
+        },
+        {
+          "category": "performance",
+          "items": [
+            "optimized realtime updates with batching (50ms debounce)",
+            "reduced unnecessary re-renders in MessageItem",
+            "improved scroll performance with throttling",
+            "lazy loading for images",
+            "draft auto-save with 500ms debounce"
+          ]
+        }
+      ]
+    }
+  ]
+}
